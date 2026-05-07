@@ -11,20 +11,28 @@ jobs:
         include:
           - os: macos-14
             target: aarch64-apple-darwin
+            npm: darwin-arm64
           - os: macos-13
             target: x86_64-apple-darwin
+            npm: darwin-x64
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
+            npm: linux-x64-gnu
           - os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
+            npm: linux-arm64-gnu
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-musl
+            npm: linux-x64-musl
           - os: ubuntu-22.04
             target: aarch64-unknown-linux-musl
+            npm: linux-arm64-musl
           - os: windows-2022
             target: x86_64-pc-windows-msvc
+            npm: win32-x64
           - os: windows-2022
             target: aarch64-pc-windows-msvc
+            npm: win32-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -34,10 +42,14 @@ jobs:
       - run: cargo build --release --target ${{ matrix.target }}
       - shell: bash
         run: |
-          version="${GITHUB_REF_NAME}"
-          name="duckduckgo-${version}-${{ matrix.target }}"
+          tag="${GITHUB_REF_NAME}"
+          name="duckduckgo-${tag}-${{ matrix.target }}"
+          bin="duckduckgo"
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then bin="duckduckgo.exe"; fi
           mkdir -p "$name/bin" "$name/share/man/man1" "$name/share/completions"
-          cp "target/${{ matrix.target }}/release/duckduckgo"* "$name/bin/" || true
+          cp "target/${{ matrix.target }}/release/$bin" "$name/bin/"
+          cp "target/${{ matrix.target }}/release/ddg"* "$name/bin/" 2>/dev/null || true
+          cp "target/${{ matrix.target }}/release/duckduckgo-cli"* "$name/bin/" 2>/dev/null || true
           cp "target/${{ matrix.target }}/release/build"/*/out/duckduckgo.1 "$name/share/man/man1/" || true
           cargo run -q -p duckduckgo-cli -- --completion bash > "$name/share/completions/duckduckgo.bash"
           cargo run -q -p duckduckgo-cli -- --completion zsh > "$name/share/completions/_duckduckgo"
@@ -47,10 +59,16 @@ jobs:
           cargo run -q -p duckduckgo-cli -- --completion elvish > "$name/share/completions/duckduckgo.elv"
           tar -czf "$name.tar.gz" "$name"
           shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          mkdir -p "npm-${{ matrix.npm }}/bin"
+          cp "target/${{ matrix.target }}/release/$bin" "npm-${{ matrix.npm }}/bin/$bin"
       - uses: actions/upload-artifact@v4
         with:
           name: duckduckgo-${{ matrix.target }}
           path: duckduckgo-*.tar.gz*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-${{ matrix.npm }}
+          path: npm-${{ matrix.npm }}/bin/*
 
   publish:
     needs: build
@@ -58,20 +76,101 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
       - uses: softprops/action-gh-release@v2
         with:
-          files: '**/duckduckgo-*.tar.gz*'
+          files: artifacts/duckduckgo-*/duckduckgo-*.tar.gz*
       - uses: actions/setup-node@v4
+        if: ${{ secrets.NPM_TOKEN != '' }}
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-      - run: npm publish --access public
+      - shell: bash
+        if: ${{ secrets.NPM_TOKEN != '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        if: ${{ secrets.NPM_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          for pkg in darwin-arm64 darwin-x64 linux-arm64-gnu linux-arm64-musl linux-x64-gnu linux-x64-musl win32-arm64 win32-x64; do
+            mkdir -p "packages/$pkg/bin"
+            cp artifacts/npm-$pkg/bin/* "packages/$pkg/bin/"
+            chmod 0755 "packages/$pkg/bin"/*
+            npm publish "packages/$pkg" --access public
+          done
+          npm publish --access public
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo publish -p duckduckgo-core && cargo publish -p duckduckgo-cli
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+      - shell: bash
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}
+        run: |
+          cargo publish -p duckduckgo-core
+          sleep 60
+          cargo publish -p duckduckgo-cli
+      - uses: actions/checkout@v4
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        with:
+          repository: ysm-dev/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+      - shell: bash
+        if: ${{ secrets.HOMEBREW_TAP_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          asset() { printf 'https://github.com/ysm-dev/duckduckgo-cli/releases/download/%s/duckduckgo-%s-%s.tar.gz' "$tag" "$tag" "$1"; }
+          sha() { cut -d ' ' -f1 "artifacts/duckduckgo-$1/duckduckgo-$tag-$1.tar.gz.sha256"; }
+          mkdir -p homebrew-tap/Formula
+          cat > homebrew-tap/Formula/duckduckgo-cli.rb <<EOF
+          class DuckduckgoCli < Formula
+            desc "Agent-first DuckDuckGo search CLI"
+            homepage "https://github.com/ysm-dev/duckduckgo-cli"
+            version "$version"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "$(asset aarch64-apple-darwin)"
+                sha256 "$(sha aarch64-apple-darwin)"
+              end
+              on_intel do
+                url "$(asset x86_64-apple-darwin)"
+                sha256 "$(sha x86_64-apple-darwin)"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "$(asset aarch64-unknown-linux-gnu)"
+                sha256 "$(sha aarch64-unknown-linux-gnu)"
+              end
+              on_intel do
+                url "$(asset x86_64-unknown-linux-gnu)"
+                sha256 "$(sha x86_64-unknown-linux-gnu)"
+              end
+            end
+
+            def install
+              bin.install "bin/duckduckgo"
+              bin.install_symlink "duckduckgo" => "ddg"
+              man1.install "share/man/man1/duckduckgo.1" if File.exist?("share/man/man1/duckduckgo.1")
+              bash_completion.install "share/completions/duckduckgo.bash" => "duckduckgo"
+              zsh_completion.install "share/completions/_duckduckgo"
+              fish_completion.install "share/completions/duckduckgo.fish"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/duckduckgo --version")
+            end
+          end
+          EOF
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C homebrew-tap add Formula/duckduckgo-cli.rb
+          git -C homebrew-tap commit -m "Update duckduckgo-cli to $tag" || exit 0
+          git -C homebrew-tap push
