@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use httpmock::prelude::*;
 use predicates::prelude::*;
@@ -9,6 +9,9 @@ fn cmd(home: &TempDir) -> assert_cmd::Command {
     let mut command = assert_cmd::Command::cargo_bin("duckduckgo").unwrap();
     command
         .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("APPDATA", home.path().join("config"))
+        .env("LOCALAPPDATA", home.path().join("local"))
         .env("XDG_CONFIG_HOME", home.path().join("config"))
         .env("XDG_STATE_HOME", home.path().join("state"))
         .env("XDG_CACHE_HOME", home.path().join("cache"))
@@ -34,6 +37,9 @@ fn alias_cmd(home: &TempDir, bin: &str) -> assert_cmd::Command {
     let mut command = assert_cmd::Command::cargo_bin(bin).unwrap();
     command
         .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("APPDATA", home.path().join("config"))
+        .env("LOCALAPPDATA", home.path().join("local"))
         .env("XDG_CONFIG_HOME", home.path().join("config"))
         .env("XDG_STATE_HOME", home.path().join("state"))
         .env("XDG_CACHE_HOME", home.path().join("cache"))
@@ -41,6 +47,32 @@ fn alias_cmd(home: &TempDir, bin: &str) -> assert_cmd::Command {
         .env_remove("HTTP_PROXY")
         .env_remove("ALL_PROXY");
     command
+}
+
+fn config_dir(home: &TempDir) -> PathBuf {
+    home.path().join("config/duckduckgo-cli")
+}
+
+fn state_dir(home: &TempDir) -> PathBuf {
+    #[cfg(windows)]
+    {
+        home.path().join("local/duckduckgo-cli/state")
+    }
+    #[cfg(not(windows))]
+    {
+        home.path().join("state/duckduckgo-cli")
+    }
+}
+
+fn cache_file(home: &TempDir, name: &str) -> PathBuf {
+    #[cfg(windows)]
+    {
+        home.path().join("local/duckduckgo-cli/cache").join(name)
+    }
+    #[cfg(not(windows))]
+    {
+        home.path().join("cache/duckduckgo-cli").join(name)
+    }
 }
 
 fn ddg_fixture() -> &'static str {
@@ -96,7 +128,7 @@ fn meta_flags_do_not_require_query() {
 #[test]
 fn print_config_merges_file_env_and_flags() {
     let home = TempDir::new().unwrap();
-    let cfg_dir = home.path().join("config/duckduckgo-cli");
+    let cfg_dir = config_dir(&home);
     fs::create_dir_all(&cfg_dir).unwrap();
     fs::write(
         cfg_dir.join("config.jsonc"),
@@ -309,7 +341,7 @@ fn no_results_json_is_quiet_exit_one_and_color_always_uses_ansi() {
 #[test]
 fn blocks_and_no_wait_return_exit_five() {
     let home = TempDir::new().unwrap();
-    let state_dir = home.path().join("state/duckduckgo-cli");
+    let state_dir = state_dir(&home);
     fs::create_dir_all(&state_dir).unwrap();
     let blocked_until = (time::OffsetDateTime::now_utc() + time::Duration::hours(1))
         .format(&time::format_description::well_known::Rfc3339)
@@ -354,9 +386,5 @@ fn update_check_uses_github_endpoint_and_cache() {
         .assert()
         .success()
         .stdout(predicate::str::contains("v0.2.0 available"));
-    assert!(
-        home.path()
-            .join("cache/duckduckgo-cli/update.json")
-            .exists()
-    );
+    assert!(cache_file(&home, "update.json").exists());
 }
