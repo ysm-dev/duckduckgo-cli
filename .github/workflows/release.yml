@@ -7,6 +7,7 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
@@ -30,7 +31,7 @@ jobs:
           - os: windows-2022
             target: x86_64-pc-windows-msvc
             npm: win32-x64
-          - os: windows-2022
+          - os: windows-11-arm
             target: aarch64-pc-windows-msvc
             npm: win32-arm64
     runs-on: ${{ matrix.os }}
@@ -39,7 +40,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
+      - uses: taiki-e/install-action@cross
+        if: runner.os == 'Linux'
+      - run: cross build --release --target ${{ matrix.target }}
+        if: runner.os == 'Linux'
       - run: cargo build --release --target ${{ matrix.target }}
+        if: runner.os != 'Linux'
       - shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
@@ -58,7 +64,11 @@ jobs:
           cargo run -q -p duckduckgo-cli -- --completion nushell > "$name/share/completions/duckduckgo.nu"
           cargo run -q -p duckduckgo-cli -- --completion elvish > "$name/share/completions/duckduckgo.elv"
           tar -czf "$name.tar.gz" "$name"
-          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          if command -v shasum >/dev/null; then
+            shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          else
+            sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          fi
           mkdir -p "npm-${{ matrix.npm }}/bin"
           cp "target/${{ matrix.target }}/release/$bin" "npm-${{ matrix.npm }}/bin/$bin"
       - uses: actions/upload-artifact@v4
