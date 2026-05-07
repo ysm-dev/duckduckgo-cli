@@ -13,19 +13,19 @@ jobs:
           - os: macos-14
             target: aarch64-apple-darwin
             npm: darwin-arm64
-          - os: macos-13
+          - os: macos-15-intel
             target: x86_64-apple-darwin
             npm: darwin-x64
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             npm: linux-x64-gnu
-          - os: ubuntu-22.04
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             npm: linux-arm64-gnu
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-musl
             npm: linux-x64-musl
-          - os: ubuntu-22.04
+          - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-musl
             npm: linux-arm64-musl
           - os: windows-2022
@@ -40,12 +40,16 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - uses: taiki-e/install-action@cross
-        if: runner.os == 'Linux'
-      - run: cross build --release --target ${{ matrix.target }}
-        if: runner.os == 'Linux'
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+        if: runner.os == 'Linux' && contains(matrix.target, 'musl')
       - run: cargo build --release --target ${{ matrix.target }}
-        if: runner.os != 'Linux'
+        if: runner.os == 'macOS'
+      - run: cargo build --release --target ${{ matrix.target }}
+        if: runner.os == 'Windows'
+        env:
+          CMAKE_TOOLCHAIN_FILE: ${{ github.workspace }}/.github/cmake/no-asm.cmake
+      - run: cargo build --release --target ${{ matrix.target }}
+        if: runner.os == 'Linux'
       - shell: bash
         run: |
           tag="${GITHUB_REF_NAME}"
@@ -57,12 +61,12 @@ jobs:
           cp "target/${{ matrix.target }}/release/ddg"* "$name/bin/" 2>/dev/null || true
           cp "target/${{ matrix.target }}/release/duckduckgo-cli"* "$name/bin/" 2>/dev/null || true
           cp "target/${{ matrix.target }}/release/build"/*/out/duckduckgo.1 "$name/share/man/man1/" || true
-          cargo run -q -p duckduckgo-cli -- --completion bash > "$name/share/completions/duckduckgo.bash"
-          cargo run -q -p duckduckgo-cli -- --completion zsh > "$name/share/completions/_duckduckgo"
-          cargo run -q -p duckduckgo-cli -- --completion fish > "$name/share/completions/duckduckgo.fish"
-          cargo run -q -p duckduckgo-cli -- --completion powershell > "$name/share/completions/duckduckgo.ps1"
-          cargo run -q -p duckduckgo-cli -- --completion nushell > "$name/share/completions/duckduckgo.nu"
-          cargo run -q -p duckduckgo-cli -- --completion elvish > "$name/share/completions/duckduckgo.elv"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion bash > "$name/share/completions/duckduckgo.bash"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion zsh > "$name/share/completions/_duckduckgo"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion fish > "$name/share/completions/duckduckgo.fish"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion powershell > "$name/share/completions/duckduckgo.ps1"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion nushell > "$name/share/completions/duckduckgo.nu"
+          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion elvish > "$name/share/completions/duckduckgo.elv"
           tar -czf "$name.tar.gz" "$name"
           if command -v shasum >/dev/null; then
             shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
