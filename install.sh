@@ -6,7 +6,11 @@ prefix=""
 version=""
 
 linux_libc() {
-  if ldd --version 2>&1 | grep -qi musl; then echo musl; else echo gnu; fi
+  if ldd --version 2>&1 | grep -qi musl; then
+    echo "duckduckgo-cli: musl Linux release artifacts are not available yet; use cargo install duckduckgo-cli" >&2
+    exit 1
+  fi
+  echo gnu
 }
 
 while [ "$#" -gt 0 ]; do

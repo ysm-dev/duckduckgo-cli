@@ -22,12 +22,6 @@ jobs:
           - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             npm: linux-arm64-gnu
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-musl
-            npm: linux-x64-musl
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-musl
-            npm: linux-arm64-musl
           - os: windows-2022
             target: x86_64-pc-windows-msvc
             npm: win32-x64
@@ -40,8 +34,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools
-        if: runner.os == 'Linux' && contains(matrix.target, 'musl')
       - run: cargo build --release --target ${{ matrix.target }}
         if: runner.os == 'macOS'
       - run: cargo build --release --target ${{ matrix.target }}
@@ -61,12 +53,12 @@ jobs:
           cp "target/${{ matrix.target }}/release/ddg"* "$name/bin/" 2>/dev/null || true
           cp "target/${{ matrix.target }}/release/duckduckgo-cli"* "$name/bin/" 2>/dev/null || true
           cp "target/${{ matrix.target }}/release/build"/*/out/duckduckgo.1 "$name/share/man/man1/" || true
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion bash > "$name/share/completions/duckduckgo.bash"
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion zsh > "$name/share/completions/_duckduckgo"
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion fish > "$name/share/completions/duckduckgo.fish"
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion powershell > "$name/share/completions/duckduckgo.ps1"
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion nushell > "$name/share/completions/duckduckgo.nu"
-          cargo run -q -p duckduckgo-cli --bin duckduckgo -- --completion elvish > "$name/share/completions/duckduckgo.elv"
+          "target/${{ matrix.target }}/release/$bin" --completion bash > "$name/share/completions/duckduckgo.bash"
+          "target/${{ matrix.target }}/release/$bin" --completion zsh > "$name/share/completions/_duckduckgo"
+          "target/${{ matrix.target }}/release/$bin" --completion fish > "$name/share/completions/duckduckgo.fish"
+          "target/${{ matrix.target }}/release/$bin" --completion powershell > "$name/share/completions/duckduckgo.ps1"
+          "target/${{ matrix.target }}/release/$bin" --completion nushell > "$name/share/completions/duckduckgo.nu"
+          "target/${{ matrix.target }}/release/$bin" --completion elvish > "$name/share/completions/duckduckgo.elv"
           tar -czf "$name.tar.gz" "$name"
           if command -v shasum >/dev/null; then
             shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
@@ -112,7 +104,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ env.NPM_TOKEN }}
         run: |
           set -euo pipefail
-          for pkg in darwin-arm64 darwin-x64 linux-arm64-gnu linux-arm64-musl linux-x64-gnu linux-x64-musl win32-arm64 win32-x64; do
+          for pkg in darwin-arm64 darwin-x64 linux-arm64-gnu linux-x64-gnu win32-arm64 win32-x64; do
             mkdir -p "packages/$pkg/bin"
             cp artifacts/npm-$pkg/bin/* "packages/$pkg/bin/"
             chmod 0755 "packages/$pkg/bin"/*
