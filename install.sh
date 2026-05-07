@@ -50,17 +50,18 @@ curl -fsSL "$url" -o "$tmp/$base"
 curl -fsSL "$url.sha256" -o "$tmp/$base.sha256"
 (cd "$tmp" && shasum -a 256 -c "$base.sha256")
 tar -xzf "$tmp/$base" -C "$tmp"
+archive_dir="$tmp/duckduckgo-$version-$triple"
 
 mkdir_cmd=mkdir
 install_cmd=install
 if [ ! -w "$prefix" ]; then mkdir_cmd="sudo mkdir"; install_cmd="sudo install"; fi
 $mkdir_cmd -p "$prefix/bin" "$prefix/share/man/man1" "$prefix/share/bash-completion/completions" "$prefix/share/zsh/site-functions" "$prefix/share/fish/vendor_completions.d"
-$install_cmd -m 0755 "$tmp/bin/duckduckgo" "$prefix/bin/duckduckgo"
+$install_cmd -m 0755 "$archive_dir/bin/duckduckgo" "$prefix/bin/duckduckgo"
 ln -sf duckduckgo "$prefix/bin/ddg" 2>/dev/null || sudo ln -sf duckduckgo "$prefix/bin/ddg"
-[ -f "$tmp/share/man/man1/duckduckgo.1" ] && $install_cmd -m 0644 "$tmp/share/man/man1/duckduckgo.1" "$prefix/share/man/man1/duckduckgo.1"
-[ -f "$tmp/share/completions/duckduckgo.bash" ] && $install_cmd -m 0644 "$tmp/share/completions/duckduckgo.bash" "$prefix/share/bash-completion/completions/duckduckgo"
-[ -f "$tmp/share/completions/_duckduckgo" ] && $install_cmd -m 0644 "$tmp/share/completions/_duckduckgo" "$prefix/share/zsh/site-functions/_duckduckgo"
-[ -f "$tmp/share/completions/duckduckgo.fish" ] && $install_cmd -m 0644 "$tmp/share/completions/duckduckgo.fish" "$prefix/share/fish/vendor_completions.d/duckduckgo.fish"
+[ -f "$archive_dir/share/man/man1/duckduckgo.1" ] && $install_cmd -m 0644 "$archive_dir/share/man/man1/duckduckgo.1" "$prefix/share/man/man1/duckduckgo.1"
+[ -f "$archive_dir/share/completions/duckduckgo.bash" ] && $install_cmd -m 0644 "$archive_dir/share/completions/duckduckgo.bash" "$prefix/share/bash-completion/completions/duckduckgo"
+[ -f "$archive_dir/share/completions/_duckduckgo" ] && $install_cmd -m 0644 "$archive_dir/share/completions/_duckduckgo" "$prefix/share/zsh/site-functions/_duckduckgo"
+[ -f "$archive_dir/share/completions/duckduckgo.fish" ] && $install_cmd -m 0644 "$archive_dir/share/completions/duckduckgo.fish" "$prefix/share/fish/vendor_completions.d/duckduckgo.fish"
 
 case ":$PATH:" in
   *":$prefix/bin:"*) ;;

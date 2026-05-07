@@ -93,6 +93,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/duckduckgo-*/duckduckgo-*.tar.gz*
+          overwrite_files: true
       - uses: actions/setup-node@v4
         if: env.NPM_TOKEN != ''
         with:
