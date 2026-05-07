@@ -1,0 +1,53 @@
+[package]
+name = "duckduckgo-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "duckduckgo"
+path = "src/main.rs"
+
+[[bin]]
+name = "ddg"
+path = "src/bin/ddg.rs"
+
+[[bin]]
+name = "duckduckgo-cli"
+path = "src/bin/duckduckgo-cli.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+clap_complete.workspace = true
+clap_complete_nushell.workspace = true
+duckduckgo-core = { path = "../duckduckgo-core", version = "0.1.0" }
+is-terminal.workspace = true
+jsonc-parser.workspace = true
+owo-colors.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+tokio.workspace = true
+terminal_size.workspace = true
+unicode-width.workspace = true
+url.workspace = true
+wreq.workspace = true
+
+[build-dependencies]
+clap.workspace = true
+clap_mangen.workspace = true
+
+[package.metadata.binstall]
+pkg-url = "{ repo }/releases/download/v{ version }/duckduckgo-v{ version }-{ target }.tar.gz"
+bin-dir = "bin"
+pkg-fmt = "tgz"
+
+[dev-dependencies]
+assert_cmd.workspace = true
+httpmock.workspace = true
+insta.workspace = true
+predicates.workspace = true
+tempfile.workspace = true

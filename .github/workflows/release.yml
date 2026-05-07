@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-musl
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+          - os: windows-2022
+            target: aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          name="duckduckgo-${version}-${{ matrix.target }}"
+          mkdir -p "$name/bin" "$name/share/man/man1" "$name/share/completions"
+          cp "target/${{ matrix.target }}/release/duckduckgo"* "$name/bin/" || true
+          cp "target/${{ matrix.target }}/release/build"/*/out/duckduckgo.1 "$name/share/man/man1/" || true
+          cargo run -q -p duckduckgo-cli -- --completion bash > "$name/share/completions/duckduckgo.bash"
+          cargo run -q -p duckduckgo-cli -- --completion zsh > "$name/share/completions/_duckduckgo"
+          cargo run -q -p duckduckgo-cli -- --completion fish > "$name/share/completions/duckduckgo.fish"
+          cargo run -q -p duckduckgo-cli -- --completion powershell > "$name/share/completions/duckduckgo.ps1"
+          cargo run -q -p duckduckgo-cli -- --completion nushell > "$name/share/completions/duckduckgo.nu"
+          cargo run -q -p duckduckgo-cli -- --completion elvish > "$name/share/completions/duckduckgo.elv"
+          tar -czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: duckduckgo-${{ matrix.target }}
+          path: duckduckgo-*.tar.gz*
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: '**/duckduckgo-*.tar.gz*'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        if: ${{ secrets.NPM_TOKEN != '' }}
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo publish -p duckduckgo-core && cargo publish -p duckduckgo-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        if: ${{ secrets.CARGO_REGISTRY_TOKEN != '' }}

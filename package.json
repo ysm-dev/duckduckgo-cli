@@ -1,0 +1,50 @@
+{
+  "name": "duckduckgo-cli",
+  "version": "0.1.0",
+  "description": "Agent-first DuckDuckGo search CLI",
+  "main": "index.js",
+  "bin": {
+    "duckduckgo": "bin/duckduckgo.js",
+    "ddg": "bin/ddg.js",
+    "duckduckgo-cli": "bin/duckduckgo-cli.js"
+  },
+  "scripts": {
+    "test": "cargo test --workspace"
+  },
+  "keywords": [
+    "duckduckgo",
+    "ddg",
+    "search",
+    "cli",
+    "web-search"
+  ],
+  "author": "ysm-dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ysm-dev/duckduckgo-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ysm-dev/duckduckgo-cli/issues"
+  },
+  "homepage": "https://github.com/ysm-dev/duckduckgo-cli#readme",
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@duckduckgo-cli/darwin-arm64": "0.1.0",
+    "@duckduckgo-cli/darwin-x64": "0.1.0",
+    "@duckduckgo-cli/linux-x64-gnu": "0.1.0",
+    "@duckduckgo-cli/linux-arm64-gnu": "0.1.0",
+    "@duckduckgo-cli/linux-x64-musl": "0.1.0",
+    "@duckduckgo-cli/linux-arm64-musl": "0.1.0",
+    "@duckduckgo-cli/win32-x64": "0.1.0",
+    "@duckduckgo-cli/win32-arm64": "0.1.0"
+  },
+  "files": [
+    "bin",
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ]
+}

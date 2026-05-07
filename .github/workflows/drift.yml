@@ -1,0 +1,16 @@
+name: HTML Drift
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  live-test:
+    runs-on: ubuntu-latest
+    env:
+      LIVE_DDG: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test -p duckduckgo-cli --test live_ddg -- --ignored

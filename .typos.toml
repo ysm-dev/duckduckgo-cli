@@ -1,0 +1,8 @@
+[default]
+extend-ignore-re = [
+  "(?Rm)^.*(JA3|JA4|vqd).*$",
+]
+
+[default.extend-words]
+DUCKDUCKGO = "DUCKDUCKGO"
+ser = "ser"

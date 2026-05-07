@@ -1,0 +1,17 @@
+node_modules/
+target/
+dist/
+coverage/
+.nyc_output/
+docs/
+
+.DS_Store
+*.log
+*.tmp
+
+.env
+.env.*
+!.env.example
+
+**/*.rs.bk
+*.profraw
