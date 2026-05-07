@@ -18,6 +18,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: ./scripts/line-cap.sh
+        shell: bash
 
   audit-typos:
     runs-on: ubuntu-latest
