@@ -3,17 +3,17 @@
 
 use std::future::Future;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use fd_lock::RwLock;
-use time::OffsetDateTime;
-use tokio::time::sleep;
 
-use super::config;
+use super::config::Limits;
 use super::outcome::{AttemptOutcome, RunResult, Snapshot};
 use super::progress::{ProgressHook, RateLimitWait};
 use super::store::StateStore;
 use super::wait::{WaitTracker, snapshot_from_state};
+use crate::Clock;
 use crate::Result;
 
 /// Lock-retry interval. Per-cycle sleep cap (`MAX_SLEEP_SECS`) bounds
@@ -29,23 +29,22 @@ pub(super) const MAX_SLEEP_SECS: u64 = 80;
 #[derive(Clone)]
 pub struct RateLimiter {
     pub(super) store: StateStore,
-    pub(super) limits: config::Limits,
+    pub(super) limits: Limits,
+    pub(super) clock: Arc<dyn Clock>,
     pub(super) progress_hook: Option<ProgressHook>,
 }
 
 impl RateLimiter {
-    pub fn new(state_dir: PathBuf, proxy: Option<&str>) -> Self {
-        Self::with_limits(state_dir, proxy, config::limits())
-    }
-
-    pub(crate) fn with_limits(
+    pub fn new(
         state_dir: PathBuf,
         proxy: Option<&str>,
-        limits: config::Limits,
+        limits: Limits,
+        clock: Arc<dyn Clock>,
     ) -> Self {
         Self {
             store: StateStore::new(state_dir, proxy),
             limits,
+            clock,
             progress_hook: None,
         }
     }
@@ -78,12 +77,12 @@ impl RateLimiter {
             let file = self.store.open_lock_file()?;
             let mut lock = RwLock::new(file);
             let Ok(_guard) = lock.try_write() else {
-                sleep(Duration::from_millis(LOCK_RETRY_MS)).await;
+                self.clock.sleep(Duration::from_millis(LOCK_RETRY_MS)).await;
                 continue;
             };
 
-            let mut state = self.store.read_state();
-            let now = OffsetDateTime::now_utc();
+            let now = self.clock.now();
+            let mut state = self.store.read_state(now);
             let consecutive = state.consecutive_blocks;
 
             if let Some(until) = state.blocked_until
@@ -125,7 +124,7 @@ impl RateLimiter {
 
             // Slot is ours. Advance the gate, persist, then call the
             // request closure with the lock still held.
-            let advance = self.limits.spacing(state.slowdown_until);
+            let advance = self.limits.spacing(state.slowdown_until, now);
             state.next_allowed_at = now + advance;
             self.store.write_state(&state)?;
             let preflight = snapshot_from_state(&state);
@@ -135,8 +134,8 @@ impl RateLimiter {
                 .expect("FnOnce taken exactly once on the proceed path");
             let (outcome, value) = f_taken(preflight.clone()).await;
 
-            self.update_post_flight(outcome, OffsetDateTime::now_utc())?;
-            let final_state = self.store.read_state();
+            self.update_post_flight(outcome, self.clock.now())?;
+            let final_state = self.store.read_state(self.clock.now());
             return Ok(RunResult {
                 value,
                 snapshot: snapshot_from_state(&final_state),

@@ -50,3 +50,29 @@ pub(crate) async fn send_once(
     let body = response.text().await.map_err(|e| e.to_string())?;
     Ok((status, final_url, body))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::build_client;
+    use crate::search::options::ClientOptions;
+
+    #[test]
+    fn build_client_rejects_invalid_proxy() {
+        let options = ClientOptions {
+            proxy: Some("not a proxy url".to_owned()),
+            ..ClientOptions::default()
+        };
+        let err = build_client(&options).unwrap_err();
+        assert!(err.to_string().contains("Usage error"));
+    }
+
+    #[test]
+    fn build_client_accepts_timeout_and_user_agent() {
+        let options = ClientOptions {
+            timeout: 1,
+            user_agent: Some("duckduckgo-test/1.0".to_owned()),
+            ..ClientOptions::default()
+        };
+        let _client = build_client(&options).unwrap();
+    }
+}

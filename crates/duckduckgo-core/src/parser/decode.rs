@@ -25,3 +25,27 @@ pub fn result_url(raw: &str) -> String {
     }
     url.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{normalized_text, result_url};
+
+    #[test]
+    fn normalized_text_collapses_whitespace() {
+        assert_eq!(
+            normalized_text(" rust\n\t async   search "),
+            "rust async search"
+        );
+    }
+
+    #[test]
+    fn result_url_unwraps_duckduckgo_redirect() {
+        let raw = "https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.rust-lang.org%2Flearn";
+        assert_eq!(result_url(raw), "https://www.rust-lang.org/learn");
+    }
+
+    #[test]
+    fn result_url_keeps_protocol_relative_absolute() {
+        assert_eq!(result_url("//example.com/path"), "https://example.com/path");
+    }
+}

@@ -1,9 +1,12 @@
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use super::execute;
 use super::options::ClientOptions;
 use super::types::{SearchResponse, TimeFilter};
+use crate::Clock;
 use crate::Result;
+use crate::rate_limit::Limits;
 use crate::rate_limit::ProgressHook;
 use crate::region::Region;
 
@@ -89,6 +92,14 @@ impl ClientBuilder {
     }
     pub fn endpoint(mut self, value: String) -> Self {
         self.options.endpoint = value;
+        self
+    }
+    pub fn limits(mut self, value: Limits) -> Self {
+        self.options.limits = value;
+        self
+    }
+    pub fn clock(mut self, value: Arc<dyn Clock>) -> Self {
+        self.options.clock = value;
         self
     }
     /// Install a callback that fires before every cooldown / spacing

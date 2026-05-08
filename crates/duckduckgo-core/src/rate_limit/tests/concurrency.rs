@@ -11,16 +11,18 @@ use tempfile::TempDir;
 use tokio::sync::Mutex;
 use tokio::task::LocalSet;
 
+use crate::SystemClock;
 use crate::rate_limit::config::Limits;
 use crate::rate_limit::{AttemptOutcome, RateLimiter};
 
 #[tokio::test(flavor = "current_thread")]
 async fn concurrent_in_process_calls_serialise_via_lock_and_spacing() {
     let dir = TempDir::new().unwrap();
-    let limiter = Arc::new(RateLimiter::with_limits(
+    let limiter = Arc::new(RateLimiter::new(
         dir.path().to_path_buf(),
         None,
         Limits::test_fast(120, 240, 1),
+        Arc::new(SystemClock),
     ));
     let starts: Arc<Mutex<Vec<Instant>>> = Arc::new(Mutex::new(Vec::new()));
     let in_flight: Arc<Mutex<u32>> = Arc::new(Mutex::new(0));

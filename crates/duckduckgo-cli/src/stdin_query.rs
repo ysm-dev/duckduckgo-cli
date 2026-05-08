@@ -23,8 +23,12 @@ pub fn query(args: &[String]) -> Result<String> {
     if bytes.len() > LIMIT {
         return Err(Error::Usage("Stdin query exceeds 64 KiB".to_owned()));
     }
-    let mut text =
-        String::from_utf8(bytes).map_err(|_| Error::Usage("Invalid UTF-8 on stdin".to_owned()))?;
+    normalize_input(&bytes)
+}
+
+fn normalize_input(bytes: &[u8]) -> Result<String> {
+    let mut text = String::from_utf8(bytes.to_vec())
+        .map_err(|_| Error::Usage("Invalid UTF-8 on stdin".to_owned()))?;
     if text.starts_with('\u{feff}') {
         text = text.trim_start_matches('\u{feff}').to_owned();
     }
@@ -36,5 +40,29 @@ fn non_empty(query: String) -> Result<String> {
         Err(Error::Usage("Empty query".to_owned()))
     } else {
         Ok(query)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_input;
+
+    #[test]
+    fn normalize_input_strips_bom_and_coalesces_whitespace() {
+        assert_eq!(
+            normalize_input("\u{feff} rust\n\tasync   search".as_bytes()).unwrap(),
+            "rust async search"
+        );
+    }
+
+    #[test]
+    fn normalize_input_handles_crlf() {
+        assert_eq!(normalize_input(b"rust\r\nbook").unwrap(), "rust book");
+    }
+
+    #[test]
+    fn normalize_input_rejects_empty_and_invalid_utf8() {
+        assert!(normalize_input(b" \n\t ").is_err());
+        assert!(normalize_input(&[0xff]).is_err());
     }
 }

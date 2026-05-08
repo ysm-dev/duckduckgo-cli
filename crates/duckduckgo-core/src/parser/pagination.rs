@@ -21,3 +21,27 @@ pub fn next_fields(document: &Html) -> Option<Vec<(String, String)>> {
     }
     None
 }
+
+#[cfg(test)]
+mod tests {
+    use scraper::Html;
+
+    use super::next_fields;
+
+    #[test]
+    fn extracts_hidden_fields_from_next_form() {
+        let document = Html::parse_document(
+            r#"<form><input name="s" value="30"><input name="nextParams" value="x"><input name="vqd" value="abc"></form>"#,
+        );
+        let fields = next_fields(&document).unwrap();
+        assert_eq!(fields[0], ("s".to_owned(), "30".to_owned()));
+        assert!(fields.contains(&("nextParams".to_owned(), "x".to_owned())));
+        assert!(fields.contains(&("vqd".to_owned(), "abc".to_owned())));
+    }
+
+    #[test]
+    fn ignores_forms_without_next_marker() {
+        let document = Html::parse_document(r#"<form><input name="q" value="rust"></form>"#);
+        assert!(next_fields(&document).is_none());
+    }
+}

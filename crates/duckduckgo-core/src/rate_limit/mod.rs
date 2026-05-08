@@ -23,6 +23,7 @@ mod state;
 mod store;
 mod wait;
 
+pub use config::Limits;
 pub use outcome::{AttemptOutcome, RunResult, Snapshot};
 pub use progress::{ProgressHook, RateLimitProgress, RateLimitWait};
 pub use runner::RateLimiter;
@@ -31,6 +32,14 @@ pub use state::RateLimitState;
 #[cfg(test)]
 #[path = "tests/runner.rs"]
 mod runner_tests;
+
+#[cfg(test)]
+#[path = "post_flight_tests.rs"]
+mod post_flight_tests;
+
+#[cfg(test)]
+#[path = "store_tests.rs"]
+mod store_tests;
 
 #[cfg(test)]
 #[path = "tests/concurrency.rs"]

@@ -25,3 +25,18 @@ pub(crate) fn paint(value: &str, code: &str, enabled: bool) -> String {
         value.to_owned()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::paint;
+
+    #[test]
+    fn paint_is_identity_when_disabled() {
+        assert_eq!(paint("value", "31", false), "value");
+    }
+
+    #[test]
+    fn paint_wraps_ansi_when_enabled() {
+        assert_eq!(paint("value", "31", true), "\u{1b}[31mvalue\u{1b}[0m");
+    }
+}

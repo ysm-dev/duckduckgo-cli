@@ -4,23 +4,36 @@
 //! Loaded via `#[path]` in `mod.rs` so it shares the crate's test
 //! visibility with `rate_limit::config::Limits::test_fast`.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use tempfile::TempDir;
 use time::OffsetDateTime;
 
-use crate::Error;
 use crate::parser::BlockReason;
 use crate::rate_limit::config::Limits;
 use crate::rate_limit::wait::snapshot_from_state;
 use crate::rate_limit::{AttemptOutcome, RateLimitState, RateLimiter};
+use crate::{Error, ManualClock, SystemClock};
 
 fn fast_limiter(dir: &TempDir) -> RateLimiter {
-    RateLimiter::with_limits(
+    RateLimiter::new(
         dir.path().to_path_buf(),
         None,
         Limits::test_fast(150, 300, 1),
+        Arc::new(SystemClock),
     )
+}
+
+fn manual_fast_limiter(dir: &TempDir) -> (RateLimiter, Arc<ManualClock>) {
+    let clock = Arc::new(ManualClock::new(OffsetDateTime::now_utc()));
+    let limiter = RateLimiter::new(
+        dir.path().to_path_buf(),
+        None,
+        Limits::test_fast(150, 300, 1),
+        clock.clone(),
+    );
+    (limiter, clock)
 }
 
 #[test]
@@ -35,8 +48,8 @@ fn snapshot_from_default_state_serializes_only_next_allowed_at() {
 #[tokio::test(flavor = "current_thread")]
 async fn run_success_advances_next_allowed_at_by_spacing() {
     let dir = TempDir::new().unwrap();
-    let limiter = fast_limiter(&dir);
-    let started = OffsetDateTime::now_utc();
+    let (limiter, clock) = manual_fast_limiter(&dir);
+    let started = clock.now();
     let result = limiter
         .run(false, |snap| async move { (AttemptOutcome::Success, snap) })
         .await
@@ -55,7 +68,7 @@ async fn run_success_advances_next_allowed_at_by_spacing() {
 #[tokio::test(flavor = "current_thread")]
 async fn run_block_sets_cooldown_and_slowdown_window() {
     let dir = TempDir::new().unwrap();
-    let limiter = fast_limiter(&dir);
+    let (limiter, _clock) = manual_fast_limiter(&dir);
     let result = limiter
         .run(true, |snap| async move {
             (AttemptOutcome::Block(BlockReason::Http202), snap)
@@ -91,15 +104,14 @@ async fn run_block_then_no_wait_returns_blocked() {
 #[tokio::test(flavor = "current_thread")]
 async fn block_then_clean_run_resets_consecutive_blocks() {
     let dir = TempDir::new().unwrap();
-    let limiter = fast_limiter(&dir);
+    let (limiter, clock) = manual_fast_limiter(&dir);
     let _ = limiter
         .run(false, |snap| async move {
             (AttemptOutcome::Block(BlockReason::Http202), snap)
         })
         .await
         .unwrap();
-    // Wait the cooldown.
-    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    clock.advance(Duration::from_millis(1_100));
     let result = limiter
         .run(false, |snap| async move { (AttemptOutcome::Success, snap) })
         .await

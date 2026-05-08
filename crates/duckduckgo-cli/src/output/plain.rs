@@ -78,3 +78,64 @@ fn wrap(text: &str, width: usize) -> Vec<String> {
         lines
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use duckduckgo_core::{RateLimitJson, SearchMeta, SearchResponse, SearchResult};
+
+    use super::{render, wrap};
+
+    #[test]
+    fn wrap_handles_ascii_words() {
+        assert_eq!(wrap("one two three", 7), vec!["one two", "three"]);
+    }
+
+    #[test]
+    fn wrap_counts_cjk_width_and_keeps_oversized_word() {
+        assert_eq!(wrap("東京 rust", 5), vec!["東京", "rust"]);
+        assert_eq!(
+            wrap("supercalifragilistic", 4),
+            vec!["supercalifragilistic"]
+        );
+    }
+
+    #[test]
+    fn wrap_empty_or_whitespace_returns_single_empty_line() {
+        assert_eq!(wrap("", 80), vec![""]);
+        assert_eq!(wrap(" \n\t ", 80), vec![""]);
+    }
+
+    #[test]
+    fn render_plain_text_contract_without_color() {
+        let response = SearchResponse {
+            schema: 1,
+            query: "rust".to_owned(),
+            kind: "web",
+            region: "us-en".to_owned(),
+            page: 1,
+            count: 1,
+            instant_answer: Some("answer".to_owned()),
+            results: vec![SearchResult {
+                position: 1,
+                title: "Rust".to_owned(),
+                url: "https://www.rust-lang.org/".to_owned(),
+                snippet: "A language empowering everyone.".to_owned(),
+            }],
+            meta: SearchMeta {
+                rate_limit: RateLimitJson {
+                    next_allowed_at: None,
+                    blocked_until: None,
+                    slowdown_until: None,
+                    retried_count: 0,
+                },
+                fetched_pages: 1,
+                elapsed_ms: 1,
+            },
+        };
+        let out = render(&response, false);
+        assert!(out.contains("answer"));
+        assert!(out.contains("   1. Rust"));
+        assert!(out.contains("https://www.rust-lang.org/"));
+        assert!(!out.contains("\u{1b}["));
+    }
+}

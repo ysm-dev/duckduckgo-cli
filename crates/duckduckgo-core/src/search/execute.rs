@@ -19,6 +19,8 @@ pub(crate) async fn execute(builder: SearchBuilder) -> Result<SearchResponse> {
         RateLimiter::new(
             builder.options.state_dir.clone(),
             builder.options.proxy.as_deref(),
+            builder.options.limits,
+            builder.options.clock.clone(),
         )
         .with_progress_hook(builder.options.progress_hook.clone())
     });

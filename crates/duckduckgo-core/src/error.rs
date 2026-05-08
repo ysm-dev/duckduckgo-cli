@@ -46,3 +46,26 @@ impl From<std::io::Error> for Error {
         Self::Io(value.to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Error;
+
+    #[test]
+    fn exit_codes_match_spec() {
+        assert_eq!(Error::Usage("x".to_owned()).exit_code(), 2);
+        assert_eq!(Error::Network("x".to_owned()).exit_code(), 3);
+        assert_eq!(Error::Remote("x".to_owned()).exit_code(), 3);
+        assert_eq!(Error::Parse("x".to_owned()).exit_code(), 4);
+        assert_eq!(Error::Blocked("x".to_owned()).exit_code(), 5);
+        assert_eq!(Error::Io("x".to_owned()).exit_code(), 6);
+    }
+
+    #[test]
+    fn display_includes_context_and_guidance() {
+        let message = Error::Blocked("http_202".to_owned()).to_string();
+        assert!(message.contains("Search blocked"));
+        assert!(message.contains("http_202"));
+        assert!(message.contains("Wait 60s"));
+    }
+}

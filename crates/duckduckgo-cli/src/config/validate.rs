@@ -69,7 +69,7 @@ pub(crate) fn validate(
     })
 }
 
-fn validate_user_agent(
+pub(super) fn validate_user_agent(
     value: Option<String>,
     warnings: &mut Vec<String>,
 ) -> Result<Option<String>> {
@@ -82,7 +82,7 @@ fn validate_user_agent(
     Ok(value)
 }
 
-fn parse_range(value: &str, name: &str, min: u64, max: u64) -> Result<u64> {
+pub(super) fn parse_range(value: &str, name: &str, min: u64, max: u64) -> Result<u64> {
     let parsed = value
         .parse::<u64>()
         .map_err(|_| Error::Usage(format!("Invalid {name} '{value}'")))?;
@@ -92,7 +92,7 @@ fn parse_range(value: &str, name: &str, min: u64, max: u64) -> Result<u64> {
     Ok(parsed)
 }
 
-fn parse_time(value: &str) -> Result<TimeFilter> {
+pub(super) fn parse_time(value: &str) -> Result<TimeFilter> {
     match value {
         "d" => Ok(TimeFilter::Day),
         "w" => Ok(TimeFilter::Week),
@@ -102,7 +102,7 @@ fn parse_time(value: &str) -> Result<TimeFilter> {
     }
 }
 
-fn parse_color(value: &str) -> Result<ColorWhen> {
+pub(super) fn parse_color(value: &str) -> Result<ColorWhen> {
     match value {
         "auto" => Ok(ColorWhen::Auto),
         "always" => Ok(ColorWhen::Always),
@@ -111,7 +111,7 @@ fn parse_color(value: &str) -> Result<ColorWhen> {
     }
 }
 
-fn validate_proxy(value: String) -> Result<String> {
+pub(super) fn validate_proxy(value: String) -> Result<String> {
     let url = Url::parse(&value).map_err(|_| Error::Usage(format!("Invalid --proxy '{value}'")))?;
     match url.scheme() {
         "http" | "https" | "socks5" | "socks5h" => Ok(value),
@@ -119,7 +119,7 @@ fn validate_proxy(value: String) -> Result<String> {
     }
 }
 
-fn browser_ua(value: &str) -> bool {
+pub(super) fn browser_ua(value: &str) -> bool {
     value.starts_with("Mozilla/")
         || ["Chrome/", "Firefox/", "Safari/", "Edge/", "Opera/"]
             .iter()

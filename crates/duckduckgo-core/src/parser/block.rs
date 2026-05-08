@@ -107,6 +107,15 @@ mod tests {
     }
 
     #[test]
+    fn anomaly_fixture_is_a_block() {
+        let body = include_str!("../../../../tests/fixtures/anomaly-2026-05.html");
+        assert_eq!(
+            classify_block(200, body, &endpoint(), &endpoint()),
+            Some(BlockReason::AnomalyMarker)
+        );
+    }
+
+    #[test]
     fn redirect_to_other_host_is_a_challenge_redirect() {
         let elsewhere = Url::parse("https://example.com/blocked").unwrap();
         assert_eq!(

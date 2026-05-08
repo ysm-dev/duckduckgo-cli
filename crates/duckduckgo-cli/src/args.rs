@@ -73,10 +73,10 @@ pub struct Cli {
     pub query: Vec<String>,
 }
 
-pub fn retry_from_args(_cli: &Cli) -> Option<String> {
+pub fn retry_from_args(args: impl IntoIterator<Item = String>) -> Option<String> {
     let mut value = None;
     let mut retry_seen = false;
-    for arg in std::env::args().skip(1) {
+    for arg in args {
         if arg == "--no-retry" {
             value = Some("0".to_owned());
         } else if arg == "--retry" || arg.starts_with("--retry=") {

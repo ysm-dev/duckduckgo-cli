@@ -7,12 +7,12 @@ use std::time::Duration;
 
 use tempfile::TempDir;
 
-use crate::Error;
 use crate::parser::BlockReason;
 use crate::rate_limit::config::Limits;
 use crate::rate_limit::{
     AttemptOutcome, ProgressHook, RateLimitProgress, RateLimitWait, RateLimiter,
 };
+use crate::{Error, ManualClock};
 
 #[tokio::test(flavor = "current_thread")]
 async fn progress_hook_fires_during_cooldown_with_carrying_consecutive_blocks() {
@@ -20,12 +20,13 @@ async fn progress_hook_fires_during_cooldown_with_carrying_consecutive_blocks() 
     let calls: Arc<Mutex<Vec<RateLimitProgress>>> = Arc::new(Mutex::new(Vec::new()));
     let calls_for_hook = calls.clone();
     let hook: ProgressHook = Arc::new(move |p| calls_for_hook.lock().unwrap().push(p));
-    let limiter = RateLimiter::with_limits(
+    let limiter = RateLimiter::new(
         dir.path().to_path_buf(),
         None,
         // 2 s base cooldown — the limiter's internal threshold is 1 s
         // total wait, so this guarantees emission on the second run.
         Limits::test_fast(50, 100, 2),
+        Arc::new(ManualClock::new(time::OffsetDateTime::now_utc())),
     )
     .with_progress_hook(Some(hook));
 
@@ -72,11 +73,12 @@ async fn progress_hook_silent_below_one_second_threshold() {
     let calls: Arc<Mutex<Vec<RateLimitProgress>>> = Arc::new(Mutex::new(Vec::new()));
     let calls_for_hook = calls.clone();
     let hook: ProgressHook = Arc::new(move |p| calls_for_hook.lock().unwrap().push(p));
-    let limiter = RateLimiter::with_limits(
+    let limiter = RateLimiter::new(
         dir.path().to_path_buf(),
         None,
         // 200 ms spacing → second run sees a sub-second wait.
         Limits::test_fast(200, 200, 1),
+        Arc::new(ManualClock::new(time::OffsetDateTime::now_utc())),
     )
     .with_progress_hook(Some(hook));
 
@@ -105,10 +107,11 @@ async fn progress_hook_not_called_when_no_wait_aborts() {
     let calls: Arc<Mutex<Vec<RateLimitProgress>>> = Arc::new(Mutex::new(Vec::new()));
     let calls_for_hook = calls.clone();
     let hook: ProgressHook = Arc::new(move |p| calls_for_hook.lock().unwrap().push(p));
-    let limiter = RateLimiter::with_limits(
+    let limiter = RateLimiter::new(
         dir.path().to_path_buf(),
         None,
         Limits::test_fast(50, 100, 2),
+        Arc::new(ManualClock::new(time::OffsetDateTime::now_utc())),
     )
     .with_progress_hook(Some(hook));
 

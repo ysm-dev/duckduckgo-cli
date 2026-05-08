@@ -55,3 +55,49 @@ impl TimeFilter {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{RateLimitJson, SearchMeta, SearchResponse, SearchResult, TimeFilter};
+
+    #[test]
+    fn time_filter_tokens_match_ddg_form_values() {
+        assert_eq!(TimeFilter::Day.as_ddg(), "d");
+        assert_eq!(TimeFilter::Week.as_ddg(), "w");
+        assert_eq!(TimeFilter::Month.as_ddg(), "m");
+        assert_eq!(TimeFilter::Year.as_ddg(), "y");
+    }
+
+    #[test]
+    fn search_response_serializes_contract_shape() {
+        let response = SearchResponse {
+            schema: 1,
+            query: "rust".to_owned(),
+            kind: "web",
+            region: "us-en".to_owned(),
+            page: 1,
+            count: 1,
+            instant_answer: Some("answer".to_owned()),
+            results: vec![SearchResult {
+                position: 1,
+                title: "Rust".to_owned(),
+                url: "https://www.rust-lang.org/".to_owned(),
+                snippet: "Systems language".to_owned(),
+            }],
+            meta: SearchMeta {
+                rate_limit: RateLimitJson {
+                    next_allowed_at: Some("2026-05-09T00:00:00Z".to_owned()),
+                    blocked_until: None,
+                    slowdown_until: None,
+                    retried_count: 2,
+                },
+                fetched_pages: 1,
+                elapsed_ms: 7,
+            },
+        };
+        let json = serde_json::to_value(response).unwrap();
+        assert_eq!(json["type"], "web");
+        assert_eq!(json["results"][0]["position"], 1);
+        assert_eq!(json["meta"]["rate_limit"]["retried_count"], 2);
+    }
+}

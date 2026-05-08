@@ -46,3 +46,35 @@ fn time_code(value: Option<TimeFilter>) -> Option<&'static str> {
         TimeFilter::Year => "y",
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{color_name, redact_proxy, time_code};
+    use crate::config::raw::ColorWhen;
+    use duckduckgo_core::TimeFilter;
+
+    #[test]
+    fn redact_proxy_masks_password_but_keeps_invalid_input() {
+        assert_eq!(
+            redact_proxy("http://user:secret@example.com:8080"),
+            "http://user:***@example.com:8080/"
+        );
+        assert_eq!(redact_proxy("not a url"), "not a url");
+    }
+
+    #[test]
+    fn color_names_are_stable() {
+        assert_eq!(color_name(&ColorWhen::Auto), "auto");
+        assert_eq!(color_name(&ColorWhen::Always), "always");
+        assert_eq!(color_name(&ColorWhen::Never), "never");
+    }
+
+    #[test]
+    fn time_codes_match_cli_values() {
+        assert_eq!(time_code(Some(TimeFilter::Day)), Some("d"));
+        assert_eq!(time_code(Some(TimeFilter::Week)), Some("w"));
+        assert_eq!(time_code(Some(TimeFilter::Month)), Some("m"));
+        assert_eq!(time_code(Some(TimeFilter::Year)), Some("y"));
+        assert_eq!(time_code(None), None);
+    }
+}

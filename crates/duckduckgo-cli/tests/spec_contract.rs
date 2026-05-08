@@ -76,21 +76,19 @@ fn cache_file(home: &TempDir, name: &str) -> PathBuf {
 }
 
 fn ddg_fixture() -> &'static str {
-    r#"<!doctype html><html><body>
-    <div class="zci__result">Rust is a systems programming language.</div>
-    <div class="result results_links web-result">
-      <div class="links_main result__body">
-        <a class="result__a" href="https://duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.rust-lang.org%2F">Rust Programming Language</a>
-        <a class="result__snippet">A language empowering everyone to build reliable and efficient software.</a>
-      </div>
-    </div>
-    <div class="result results_links web-result">
-      <div class="links_main result__body">
-        <a class="result__a" href="https://doc.rust-lang.org/book/">The Rust Book</a>
-        <a class="result__snippet">The book teaches Rust from installation through ownership.</a>
-      </div>
-    </div>
-    </body></html>"#
+    include_str!("../../../tests/fixtures/results-2026-05.html")
+}
+
+fn anomaly_fixture() -> &'static str {
+    include_str!("../../../tests/fixtures/anomaly-2026-05.html")
+}
+
+fn empty_fixture() -> &'static str {
+    include_str!("../../../tests/fixtures/empty-results-2026-05.html")
+}
+
+fn instant_answer_fixture() -> &'static str {
+    include_str!("../../../tests/fixtures/instant-answer-2026-05.html")
 }
 
 #[test]
@@ -317,8 +315,7 @@ fn no_results_json_is_quiet_exit_one_and_color_always_uses_ansi() {
     let empty = MockServer::start();
     let _empty_mock = empty.mock(|when, then| {
         when.method(POST).path("/html/").body_includes("q=nomatch");
-        then.status(200)
-            .body("<!doctype html><p>No results found.</p>");
+        then.status(200).body(empty_fixture());
     });
     let output = cmd(&home)
         .env("DUCKDUCKGO_DDG_URL", empty.url("/html/"))
@@ -336,7 +333,7 @@ fn no_results_json_is_quiet_exit_one_and_color_always_uses_ansi() {
     let server = MockServer::start();
     let _server_mock = server.mock(|when, then| {
         when.method(POST).path("/html/");
-        then.status(200).body(ddg_fixture());
+        then.status(200).body(instant_answer_fixture());
     });
     cmd(&home)
         .env("DUCKDUCKGO_DDG_URL", server.url("/html/"))
@@ -369,7 +366,7 @@ fn blocks_and_no_wait_return_exit_five() {
     let server = MockServer::start();
     server.mock(|when, then| {
         when.method(POST).path("/html/");
-        then.status(202).body("anomaly_modal");
+        then.status(202).body(anomaly_fixture());
     });
     cmd(&home)
         .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))

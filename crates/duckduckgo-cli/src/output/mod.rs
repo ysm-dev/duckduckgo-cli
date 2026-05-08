@@ -84,3 +84,64 @@ pub fn should_auto_update(settings: &Settings) -> bool {
         && std::io::stdout().is_terminal()
         && std::io::stderr().is_terminal()
 }
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use duckduckgo_core::Region;
+    use duckduckgo_core::paths::RuntimePaths;
+
+    use crate::config::{ColorWhen, Settings};
+
+    use super::{OutputCtx, should_auto_update};
+
+    fn settings(color: ColorWhen) -> Settings {
+        Settings {
+            region: Region::default(),
+            num: 10,
+            page: 1,
+            safe: true,
+            time: None,
+            sites: Vec::new(),
+            json: false,
+            color,
+            verbose: 0,
+            quiet: false,
+            timeout: 30,
+            proxy: None,
+            user_agent: None,
+            retry: 3,
+            no_wait: false,
+            no_update_check: false,
+            rate_limit: true,
+            paths: RuntimePaths {
+                config_file: PathBuf::from("config.jsonc"),
+                state_dir: PathBuf::from("state"),
+                cache_dir: PathBuf::from("cache"),
+            },
+            warnings: Vec::new(),
+            ddg_url: "https://html.duckduckgo.com/html/".to_owned(),
+            github_url: "https://api.github.com".to_owned(),
+        }
+    }
+
+    #[test]
+    fn output_context_captures_quiet_and_color() {
+        let mut settings = settings(ColorWhen::Always);
+        settings.quiet = true;
+        let ctx = OutputCtx::from_settings(&settings);
+        assert!(ctx.quiet);
+        assert!(ctx.stderr_color);
+    }
+
+    #[test]
+    fn auto_update_short_circuits_for_disabled_or_json_output() {
+        let mut settings = settings(ColorWhen::Never);
+        settings.no_update_check = true;
+        assert!(!should_auto_update(&settings));
+        settings.no_update_check = false;
+        settings.json = true;
+        assert!(!should_auto_update(&settings));
+    }
+}

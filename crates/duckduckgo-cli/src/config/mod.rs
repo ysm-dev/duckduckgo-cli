@@ -5,6 +5,13 @@ mod print;
 mod raw;
 mod validate;
 
+#[cfg(test)]
+#[path = "file_tests.rs"]
+mod file_tests;
+#[cfg(test)]
+#[path = "validate_tests.rs"]
+mod validate_tests;
+
 use std::env;
 use std::path::PathBuf;
 

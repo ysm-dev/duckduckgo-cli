@@ -13,7 +13,7 @@ use crate::{Error, Result};
 /// Distinct from `AttemptOutcome` because we keep the parsed body / error
 /// alongside so the post-limit decision can route between
 /// success / retry / fail without re-running the HTTP request.
-enum CallResult {
+pub(super) enum CallResult {
     Parsed(ParsedPage),
     Block(BlockReason),
     Transient5xx(u16),
@@ -98,7 +98,7 @@ async fn run_attempt(
     }
 }
 
-fn classify_response(
+pub(super) fn classify_response(
     response: std::result::Result<(u16, Url, String), String>,
     endpoint: &Url,
 ) -> (AttemptOutcome, CallResult) {

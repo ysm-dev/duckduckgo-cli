@@ -35,12 +35,13 @@ pub(crate) fn apply_env(raw: &mut Raw) -> Result<()> {
 
 fn apply_color_env(raw: &mut Raw) {
     let duck_color = env::var("DUCKDUCKGO_COLOR").ok();
-    if let Some(value) = duck_color.clone() {
+    if let Some(value) = color_from_env(duck_color, env::var_os("NO_COLOR").is_some()) {
         raw.color = Some(value);
     }
-    if env::var_os("NO_COLOR").is_some() && duck_color.is_none() {
-        raw.color = Some("never".to_owned());
-    }
+}
+
+fn color_from_env(duck_color: Option<String>, no_color: bool) -> Option<String> {
+    duck_color.or_else(|| no_color.then(|| "never".to_owned()))
 }
 
 fn apply_bool_envs(raw: &mut Raw) -> Result<()> {
@@ -64,5 +65,40 @@ fn parse_bool_env(key: &str, value: &str) -> Result<bool> {
         "1" | "true" | "yes" | "on" => Ok(true),
         "0" | "false" | "no" | "off" => Ok(false),
         _ => Err(Error::Usage(format!("Invalid {key} value '{value}'"))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{color_from_env, parse_bool_env};
+
+    #[test]
+    fn parse_bool_env_accepts_documented_true_values() {
+        for value in ["1", "true", "TRUE", "yes", "on"] {
+            assert!(parse_bool_env("KEY", value).unwrap(), "{value}");
+        }
+    }
+
+    #[test]
+    fn parse_bool_env_accepts_documented_false_values() {
+        for value in ["0", "false", "FALSE", "no", "off"] {
+            assert!(!parse_bool_env("KEY", value).unwrap(), "{value}");
+        }
+    }
+
+    #[test]
+    fn parse_bool_env_rejects_unknown_values() {
+        let err = parse_bool_env("DUCKDUCKGO_SAFE", "maybe").unwrap_err();
+        assert!(err.to_string().contains("Invalid DUCKDUCKGO_SAFE"));
+    }
+
+    #[test]
+    fn duckduckgo_color_precedes_no_color() {
+        assert_eq!(
+            color_from_env(Some("always".to_owned()), true),
+            Some("always".to_owned())
+        );
+        assert_eq!(color_from_env(None, true), Some("never".to_owned()));
+        assert_eq!(color_from_env(None, false), None);
     }
 }

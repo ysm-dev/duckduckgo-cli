@@ -8,7 +8,6 @@ use std::cmp::max;
 use std::time::Duration;
 
 use time::OffsetDateTime;
-use tokio::time::sleep;
 
 use super::outcome::AttemptOutcome;
 use super::progress::{RateLimitProgress, RateLimitWait};
@@ -35,12 +34,14 @@ impl RateLimiter {
                 RateLimitWait::Spacing => "Rate limit spacing wait required".to_owned(),
             }));
         }
-        let now = OffsetDateTime::now_utc();
+        let now = self.clock.now();
         let remaining = remaining.unsigned_abs();
         let (elapsed, total) = tracker.observe(now, remaining);
         self.emit_progress(kind, elapsed, remaining, total, consecutive_blocks);
         let bounded = remaining.min(Duration::from_secs(MAX_SLEEP_SECS));
-        sleep(with_positive_jitter(bounded, self.limits.jitter)).await;
+        self.clock
+            .sleep(with_positive_jitter(bounded, self.limits.jitter))
+            .await;
         Ok(())
     }
 
@@ -75,7 +76,7 @@ impl RateLimiter {
         outcome: AttemptOutcome,
         now: OffsetDateTime,
     ) -> Result<()> {
-        let mut state = self.store.read_state();
+        let mut state = self.store.read_state(now);
         match outcome {
             AttemptOutcome::Success => {
                 state.consecutive_blocks = 0;

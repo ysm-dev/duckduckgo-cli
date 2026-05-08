@@ -1,6 +1,7 @@
 use std::env;
-use std::sync::OnceLock;
 use std::time::Duration;
+
+use time::OffsetDateTime;
 
 /// Tunable constants for the spacing/in-flight guard. Defaults match the
 /// 2026-05-08 first-party field report (`docs/en/ddgr.md`); they may be
@@ -17,8 +18,7 @@ pub struct Limits {
 }
 
 impl Limits {
-    /// Test-only fast-spacing preset for in-process unit tests.
-    #[cfg(test)]
+    /// Fast-spacing preset for deterministic tests and controlled harnesses.
     pub fn test_fast(spacing_ms: u64, slow_spacing_ms: u64, cooldown_secs: u64) -> Self {
         Self {
             base_spacing: Duration::from_millis(spacing_ms),
@@ -28,6 +28,24 @@ impl Limits {
             max_cooldown: Duration::from_secs(cooldown_secs.max(1).saturating_mul(5)),
             jitter: Duration::from_millis(0),
         }
+    }
+
+    /// Load default limits and apply supported environment overrides.
+    pub fn from_env() -> Self {
+        let mut limits = Self::default();
+        if let Some(ms) = env_u64("DUCKDUCKGO_BASE_SPACING_MS").filter(|v| *v <= 60_000) {
+            limits.base_spacing = Duration::from_millis(ms);
+        }
+        if let Some(ms) = env_u64("DUCKDUCKGO_SLOW_SPACING_MS").filter(|v| *v <= 120_000) {
+            let candidate = Duration::from_millis(ms);
+            limits.slow_spacing = candidate.max(limits.base_spacing);
+        }
+        if let Some(secs) = env_u64("DUCKDUCKGO_BASE_COOLDOWN_S").filter(|v| (1..=600).contains(v))
+        {
+            limits.base_cooldown = Duration::from_secs(secs);
+            limits.max_cooldown = limits.max_cooldown.max(limits.base_cooldown);
+        }
+        limits
     }
 }
 
@@ -55,8 +73,8 @@ impl Limits {
 
     /// Spacing in effect at `now`: `slow_spacing` while the slowdown window
     /// covers the moment, otherwise `base_spacing`.
-    pub fn spacing(&self, slowdown_until: Option<time::OffsetDateTime>) -> Duration {
-        if slowdown_until.is_some_and(|t| t > time::OffsetDateTime::now_utc()) {
+    pub fn spacing(&self, slowdown_until: Option<OffsetDateTime>, now: OffsetDateTime) -> Duration {
+        if slowdown_until.is_some_and(|t| t > now) {
             self.slow_spacing
         } else {
             self.base_spacing
@@ -69,29 +87,6 @@ impl Limits {
 /// - `DUCKDUCKGO_SLOW_SPACING_MS` — integer ms, clamped to ≤ 120 000 and to ≥ base.
 /// - `DUCKDUCKGO_BASE_COOLDOWN_S` — integer seconds, clamped to 1..=600.
 ///
-/// Read once on first call and cached. Invalid values are ignored silently
-/// to keep the limiter robust under broken shell environments.
-pub fn limits() -> Limits {
-    static LIMITS: OnceLock<Limits> = OnceLock::new();
-    *LIMITS.get_or_init(load_from_env)
-}
-
-fn load_from_env() -> Limits {
-    let mut limits = Limits::default();
-    if let Some(ms) = env_u64("DUCKDUCKGO_BASE_SPACING_MS").filter(|v| *v <= 60_000) {
-        limits.base_spacing = Duration::from_millis(ms);
-    }
-    if let Some(ms) = env_u64("DUCKDUCKGO_SLOW_SPACING_MS").filter(|v| *v <= 120_000) {
-        let candidate = Duration::from_millis(ms);
-        limits.slow_spacing = candidate.max(limits.base_spacing);
-    }
-    if let Some(secs) = env_u64("DUCKDUCKGO_BASE_COOLDOWN_S").filter(|v| (1..=600).contains(v)) {
-        limits.base_cooldown = Duration::from_secs(secs);
-        limits.max_cooldown = limits.max_cooldown.max(limits.base_cooldown);
-    }
-    limits
-}
-
 fn env_u64(key: &str) -> Option<u64> {
     env::var(key).ok().and_then(|v| v.parse::<u64>().ok())
 }
@@ -116,13 +111,17 @@ mod tests {
     #[test]
     fn spacing_picks_slow_inside_window() {
         let limits = Limits::default();
-        let in_future = time::OffsetDateTime::now_utc() + Duration::from_secs(60);
-        let in_past = time::OffsetDateTime::now_utc() - Duration::from_secs(60);
+        let now = time::OffsetDateTime::now_utc();
+        let in_future = now + Duration::from_secs(60);
+        let in_past = now - Duration::from_secs(60);
         assert_eq!(
-            limits.spacing(Some(in_future)),
+            limits.spacing(Some(in_future), now),
             Duration::from_millis(4_000)
         );
-        assert_eq!(limits.spacing(Some(in_past)), Duration::from_millis(2_000));
-        assert_eq!(limits.spacing(None), Duration::from_millis(2_000));
+        assert_eq!(
+            limits.spacing(Some(in_past), now),
+            Duration::from_millis(2_000)
+        );
+        assert_eq!(limits.spacing(None, now), Duration::from_millis(2_000));
     }
 }

@@ -70,6 +70,40 @@ mod tests {
 
     use super::parse_html;
 
+    const RESULTS: &str = include_str!("../../../../tests/fixtures/results-2026-05.html");
+    const INSTANT: &str = include_str!("../../../../tests/fixtures/instant-answer-2026-05.html");
+    const EMPTY: &str = include_str!("../../../../tests/fixtures/empty-results-2026-05.html");
+
+    #[test]
+    fn results_fixture_parses_expected_results() {
+        let parsed = parse_html(RESULTS).unwrap();
+        assert_eq!(
+            parsed.instant_answer.as_deref(),
+            Some("Rust is a systems programming language.")
+        );
+        assert_eq!(parsed.results.len(), 2);
+        assert_eq!(parsed.results[0].title, "Rust Programming Language");
+        assert_eq!(parsed.results[0].url, "https://www.rust-lang.org/");
+        assert_eq!(parsed.results[1].title, "The Rust Book");
+    }
+
+    #[test]
+    fn instant_answer_fixture_extracts_answer() {
+        let parsed = parse_html(INSTANT).unwrap();
+        assert_eq!(
+            parsed.instant_answer.as_deref(),
+            Some("Instant answer text.")
+        );
+        assert_eq!(parsed.results.len(), 1);
+    }
+
+    #[test]
+    fn empty_results_fixture_is_not_parse_error() {
+        let parsed = parse_html(EMPTY).unwrap();
+        assert!(parsed.no_results);
+        assert!(parsed.results.is_empty());
+    }
+
     proptest! {
         #[test]
         fn arbitrary_html_never_panics(input in ".*") {

@@ -42,3 +42,21 @@ pub(crate) fn set_env_string(slot: &mut Option<String>, key: &str) {
         *slot = Some(value);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{bool_field, num_field, str_field};
+
+    #[test]
+    fn typed_fields_extract_expected_values() {
+        let value = json!({ "region": "us-en", "num": 5, "safe": false, "nullish": null });
+        let obj = value.as_object().unwrap();
+        assert_eq!(str_field(obj, "region"), Some("us-en".to_owned()));
+        assert_eq!(num_field(obj, "num"), Some("5".to_owned()));
+        assert_eq!(bool_field(obj, "safe"), Some(false));
+        assert_eq!(str_field(obj, "missing"), None);
+        assert_eq!(num_field(obj, "nullish"), None);
+    }
+}

@@ -67,3 +67,33 @@ pub(super) fn with_positive_jitter(base: Duration, jitter: Duration) -> Duration
     let offset = ((nanos.wrapping_mul(2_654_435_761) ^ pid) % span) as u64;
     base.saturating_add(Duration::from_nanos(offset))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{WaitTracker, with_positive_jitter};
+    use std::time::Duration;
+    use time::macros::datetime;
+
+    #[test]
+    fn wait_tracker_keeps_initial_total_stable() {
+        let mut tracker = WaitTracker::new();
+        let started = datetime!(2026-05-09 00:00 UTC);
+        assert_eq!(
+            tracker.observe(started, Duration::from_secs(10)),
+            (Duration::ZERO, Duration::from_secs(10))
+        );
+        assert_eq!(
+            tracker.observe(started + time::Duration::seconds(3), Duration::from_secs(7)),
+            (Duration::from_secs(3), Duration::from_secs(10))
+        );
+    }
+
+    #[test]
+    fn positive_jitter_never_shortens_wait() {
+        let base = Duration::from_millis(100);
+        assert_eq!(with_positive_jitter(base, Duration::ZERO), base);
+        let jittered = with_positive_jitter(base, Duration::from_millis(50));
+        assert!(jittered >= base);
+        assert!(jittered < base + Duration::from_millis(50));
+    }
+}

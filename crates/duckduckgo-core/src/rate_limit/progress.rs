@@ -51,3 +51,14 @@ pub struct RateLimitProgress {
 /// closure must be cheap; it is called while holding no locks but on
 /// the hot path of the limiter loop.
 pub type ProgressHook = Arc<dyn Fn(RateLimitProgress) + Send + Sync>;
+
+#[cfg(test)]
+mod tests {
+    use super::RateLimitWait;
+
+    #[test]
+    fn wait_tokens_are_stable() {
+        assert_eq!(RateLimitWait::Cooldown.as_token(), "cooldown");
+        assert_eq!(RateLimitWait::Spacing.as_token(), "spacing");
+    }
+}

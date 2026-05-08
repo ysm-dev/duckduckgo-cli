@@ -2,16 +2,24 @@
 
 mod args;
 mod config;
+mod meta;
 mod output;
 mod stdin_query;
 mod update_check;
+
+#[cfg(test)]
+mod args_tests;
+#[cfg(test)]
+mod update_check_http_tests;
+#[cfg(test)]
+mod update_check_tests;
 
 use std::io::Write;
 use std::process::ExitCode;
 use std::sync::Arc;
 
 use clap::Parser;
-use duckduckgo_core::{Client, Error, ProgressHook, RateLimitProgress};
+use duckduckgo_core::{Client, Limits, ProgressHook, RateLimitProgress};
 
 use crate::args::Cli;
 use crate::config::Settings;
@@ -28,27 +36,8 @@ pub async fn main_entry() -> ExitCode {
 }
 
 async fn run() -> duckduckgo_core::Result<i32> {
-    let cli = Cli::try_parse().map_err(|e| Error::Usage(e.to_string()))?;
-    if cli.help_short || cli.help_long {
-        print_help(cli.help_long);
-        return Ok(0);
-    }
-    if cli.version {
-        println!(
-            "duckduckgo-cli {} (commit unknown, target {})",
-            env!("CARGO_PKG_VERSION"),
-            env!("DUCKDUCKGO_TARGET")
-        );
-        return Ok(0);
-    }
-    if let Some(shell) = &cli.completion {
-        args::print_completion(shell)?;
-        return Ok(0);
-    }
-    if cli.list_regions {
-        for (code, name) in duckduckgo_core::region::REGION_CODES {
-            println!("{code}\t{name}");
-        }
+    let cli = Cli::try_parse().map_err(meta::clap_usage)?;
+    if meta::dispatch(&cli)? {
         return Ok(0);
     }
 
@@ -63,21 +52,25 @@ async fn run() -> duckduckgo_core::Result<i32> {
         return Ok(0);
     }
 
+    run_search(&cli, &settings).await
+}
+
+async fn run_search(cli: &Cli, settings: &Settings) -> duckduckgo_core::Result<i32> {
     let query = stdin_query::query(&cli.query)?;
-    let client = build_client(&settings)?;
+    let client = build_client(settings)?;
     let mut search = client.search(query).page(settings.page).time(settings.time);
     for site in &settings.sites {
         search = search.site(site.clone());
     }
     let response = search.send().await?;
     let code = if response.results.is_empty() { 1 } else { 0 };
-    output::render(&settings, &response)?;
+    output::render(settings, &response)?;
     if code == 1 && !settings.json && !settings.quiet {
-        output::warn(&settings, "No results.");
+        output::warn(settings, "No results.");
     }
-    if code <= 1 && output::should_auto_update(&settings) {
+    if code <= 1 && output::should_auto_update(settings) {
         let _ = std::io::stdout().flush();
-        let _ = update_check::check_auto(&settings).await;
+        let _ = update_check::check_auto(settings).await;
     }
     Ok(code)
 }
@@ -95,6 +88,7 @@ fn build_client(settings: &Settings) -> duckduckgo_core::Result<Client> {
         .no_rate_limit(!settings.rate_limit)
         .state_dir(settings.paths.state_dir.clone())
         .endpoint(settings.ddg_url.clone())
+        .limits(Limits::from_env())
         .on_rate_limit_progress(rate_limit_progress_hook(settings))
         .build()
 }
@@ -119,12 +113,4 @@ fn rate_limit_progress_hook(settings: &Settings) -> ProgressHook {
         let message = format!("rate-limit {kind} {elapsed}s/{total}s ({remaining}s left){suffix}");
         output::info_with(&ctx, &message);
     })
-}
-
-fn print_help(long: bool) {
-    if long {
-        println!("{}", args::long_help());
-    } else {
-        println!("{}", args::short_help());
-    }
 }

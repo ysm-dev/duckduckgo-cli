@@ -42,12 +42,15 @@ impl StateStore {
         open_private(&self.lock_path)
     }
 
-    pub fn read_state(&self) -> RateLimitState {
+    pub fn read_state(&self, now: OffsetDateTime) -> RateLimitState {
         let mut state: RateLimitState = std::fs::read_to_string(&self.state_path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default();
-        state.sanitize(OffsetDateTime::now_utc());
+            .unwrap_or_else(|| RateLimitState {
+                next_allowed_at: now,
+                ..RateLimitState::default()
+            });
+        state.sanitize(now);
         state
     }
 
@@ -74,7 +77,7 @@ fn open_private(path: &Path) -> Result<File> {
     Ok(options.open(path)?)
 }
 
-fn proxy_hash(proxy: &str) -> String {
+pub(super) fn proxy_hash(proxy: &str) -> String {
     let normalized = normalize_proxy(proxy).unwrap_or_else(|| proxy.to_owned());
     Sha256::digest(normalized.as_bytes())
         .iter()
@@ -83,7 +86,7 @@ fn proxy_hash(proxy: &str) -> String {
         .collect()
 }
 
-fn normalize_proxy(proxy: &str) -> Option<String> {
+pub(super) fn normalize_proxy(proxy: &str) -> Option<String> {
     let url = Url::parse(proxy).ok()?;
     let scheme = url.scheme().to_ascii_lowercase();
     let host = url.host_str()?.to_ascii_lowercase();

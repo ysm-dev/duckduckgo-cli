@@ -47,7 +47,7 @@ pub async fn check_auto(settings: &Settings) -> Result<()> {
     Ok(())
 }
 
-async fn fetch_latest(settings: &Settings) -> Result<String> {
+pub(crate) async fn fetch_latest(settings: &Settings) -> Result<String> {
     let url = format!(
         "{}/repos/ysm-dev/duckduckgo-cli/releases/latest",
         settings.github_url.trim_end_matches('/')
@@ -79,11 +79,19 @@ async fn fetch_latest(settings: &Settings) -> Result<String> {
 }
 
 fn cache_fresh(settings: &Settings) -> bool {
+    cache_fresh_at(settings, OffsetDateTime::now_utc())
+}
+
+pub(crate) fn cache_fresh_at(settings: &Settings, now: OffsetDateTime) -> bool {
     let path = settings.paths.cache_dir.join("update.json");
     let Ok(text) = std::fs::read_to_string(path) else {
         return false;
     };
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+    cache_value_fresh(&text, now)
+}
+
+pub(crate) fn cache_value_fresh(text: &str, now: OffsetDateTime) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
         return false;
     };
     let Some(last) = value["last_check"].as_str() else {
@@ -93,7 +101,7 @@ fn cache_fresh(settings: &Settings) -> bool {
     else {
         return false;
     };
-    OffsetDateTime::now_utc() - last < time::Duration::hours(24)
+    now - last < time::Duration::hours(24)
 }
 
 fn write_cache(settings: &Settings, latest: Option<&str>) -> Result<()> {
@@ -110,13 +118,13 @@ fn write_cache(settings: &Settings, latest: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn previous_success(path: &std::path::Path) -> Option<String> {
+pub(crate) fn previous_success(path: &std::path::Path) -> Option<String> {
     let text = std::fs::read_to_string(path).ok()?;
     let value = serde_json::from_str::<serde_json::Value>(&text).ok()?;
     value["last_success"].as_str().map(str::to_owned)
 }
 
-fn version_gt(latest: &str, current: &str) -> bool {
+pub(crate) fn version_gt(latest: &str, current: &str) -> bool {
     let parse = |v: &str| {
         v.trim_start_matches('v')
             .split('.')
