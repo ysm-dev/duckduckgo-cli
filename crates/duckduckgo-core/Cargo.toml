@@ -20,4 +20,10 @@ wreq.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+serde_json.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["fs", "macros", "rt", "sync", "time"] }
+
+[[example]]
+name = "ddg_probe"
+path = "examples/ddg_probe.rs"

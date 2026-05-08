@@ -4,6 +4,7 @@ use super::execute;
 use super::options::ClientOptions;
 use super::types::{SearchResponse, TimeFilter};
 use crate::Result;
+use crate::rate_limit::ProgressHook;
 use crate::region::Region;
 
 #[derive(Clone, Debug)]
@@ -88,6 +89,15 @@ impl ClientBuilder {
     }
     pub fn endpoint(mut self, value: String) -> Self {
         self.options.endpoint = value;
+        self
+    }
+    /// Install a callback that fires before every cooldown / spacing
+    /// sleep cycle. Used by the CLI to emit `[INFO] rate-limit ...`
+    /// progress lines on stderr; library callers typically leave this
+    /// unset.
+    #[must_use]
+    pub fn on_rate_limit_progress(mut self, hook: ProgressHook) -> Self {
+        self.options.progress_hook = Some(hook);
         self
     }
     pub fn build(self) -> Result<Client> {

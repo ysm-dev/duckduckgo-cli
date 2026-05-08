@@ -105,7 +105,10 @@ fn meta_flags_do_not_require_query() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("duckduckgo-cli 0.1.0"));
+        .stdout(predicate::str::contains(format!(
+            "duckduckgo-cli {}",
+            env!("CARGO_PKG_VERSION")
+        )));
     for shell in ["bash", "zsh", "fish", "powershell", "nushell", "elvish"] {
         cmd(&home)
             .args(["--completion", shell])
@@ -117,12 +120,18 @@ fn meta_flags_do_not_require_query() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("duckduckgo-cli 0.1.0"));
+        .stdout(predicate::str::contains(format!(
+            "duckduckgo-cli {}",
+            env!("CARGO_PKG_VERSION")
+        )));
     alias_cmd(&home, "duckduckgo-cli")
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("duckduckgo-cli 0.1.0"));
+        .stdout(predicate::str::contains(format!(
+            "duckduckgo-cli {}",
+            env!("CARGO_PKG_VERSION")
+        )));
 }
 
 #[test]
@@ -368,6 +377,171 @@ fn blocks_and_no_wait_return_exit_five() {
         .assert()
         .code(5)
         .stderr(predicate::str::contains("blocked"));
+}
+
+#[test]
+fn rate_limit_spacing_wait_emits_short_progress_line_on_stderr() {
+    // Pre-arm `next_allowed_at ≈ now + 2s` so the very next CLI call
+    // observes a spacing wait above the 1 s emission threshold without
+    // needing to provoke a real 202. The mock returns a usable page so
+    // the run also exercises the post-wait success path.
+    let home = TempDir::new().unwrap();
+    let state_dir = state_dir(&home);
+    fs::create_dir_all(&state_dir).unwrap();
+    let next_allowed_at = (time::OffsetDateTime::now_utc() + time::Duration::seconds(2))
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    fs::write(
+        state_dir.join("rate-limit.json"),
+        format!(
+            r#"{{"schema":2,"next_allowed_at":"{next_allowed_at}","blocked_until":null,"slowdown_until":null,"consecutive_blocks":0,"last_block_reason":null}}"#
+        ),
+    )
+    .unwrap();
+
+    let server = MockServer::start();
+    server.mock(|when, then| {
+        when.method(POST).path("/html/");
+        then.status(200).body(ddg_fixture());
+    });
+
+    cmd(&home)
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .args(["--color", "never", "-n", "1", "rust"])
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::contains("[INFO] rate-limit spacing")
+                .and(predicate::str::is_match(r"\d+s/\d+s \(\d+s left\)").unwrap()),
+        );
+}
+
+#[test]
+fn rate_limit_progress_is_silent_under_quiet_flag() {
+    // Same arming as above, but `--quiet` must suppress the [INFO]
+    // line per the noise budget in spec §9.3.
+    let home = TempDir::new().unwrap();
+    let state_dir = state_dir(&home);
+    fs::create_dir_all(&state_dir).unwrap();
+    let next_allowed_at = (time::OffsetDateTime::now_utc() + time::Duration::seconds(2))
+        .format(&time::format_description::well_known::Rfc3339)
+        .unwrap();
+    fs::write(
+        state_dir.join("rate-limit.json"),
+        format!(
+            r#"{{"schema":2,"next_allowed_at":"{next_allowed_at}","blocked_until":null,"slowdown_until":null,"consecutive_blocks":0,"last_block_reason":null}}"#
+        ),
+    )
+    .unwrap();
+
+    let server = MockServer::start();
+    server.mock(|when, then| {
+        when.method(POST).path("/html/");
+        then.status(200).body(ddg_fixture());
+    });
+
+    cmd(&home)
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .args(["--quiet", "-n", "1", "rust"])
+        .assert()
+        .success()
+        .stderr(predicate::str::contains("rate-limit").not());
+}
+
+#[test]
+fn parallel_cli_invocations_serialise_through_state_file_and_never_burst() {
+    use std::process::Command;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::thread;
+
+    let home = TempDir::new().unwrap();
+    let server = MockServer::start();
+
+    // Each request grabs the in_flight count atomically. We assert the
+    // observed maximum is 1 (no two requests overlapping at the mock
+    // server) and that the timing between request starts respects the
+    // configured 250ms BASE_SPACING (we use a tight value to keep the
+    // test fast; in production the default is 2s).
+    let in_flight = Arc::new(AtomicU32::new(0));
+    let max_in_flight = Arc::new(AtomicU32::new(0));
+    let starts: Arc<std::sync::Mutex<Vec<std::time::Instant>>> =
+        Arc::new(std::sync::Mutex::new(Vec::new()));
+
+    let in_flight_for_mock = in_flight.clone();
+    let max_in_flight_for_mock = max_in_flight.clone();
+    let starts_for_mock = starts.clone();
+    server.mock(move |when, then| {
+        when.method(POST).path("/html/");
+        let cur = in_flight_for_mock.fetch_add(1, Ordering::SeqCst) + 1;
+        let mut high = max_in_flight_for_mock.load(Ordering::SeqCst);
+        while cur > high
+            && let Err(updated) = max_in_flight_for_mock.compare_exchange(
+                high,
+                cur,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            )
+        {
+            high = updated;
+        }
+        starts_for_mock
+            .lock()
+            .expect("starts mutex")
+            .push(std::time::Instant::now());
+        thread::sleep(std::time::Duration::from_millis(80));
+        in_flight_for_mock.fetch_sub(1, Ordering::SeqCst);
+        then.status(200).body(ddg_fixture());
+    });
+
+    let parallel = 8_u32;
+    let endpoint = format!("{}/html/", server.base_url());
+    let mut handles = Vec::with_capacity(parallel as usize);
+    for _ in 0..parallel {
+        let endpoint = endpoint.clone();
+        let home_path = home.path().to_path_buf();
+        handles.push(thread::spawn(move || {
+            let mut cmd = Command::new(env!("CARGO_BIN_EXE_duckduckgo"));
+            cmd.env("HOME", &home_path)
+                .env("USERPROFILE", &home_path)
+                .env("APPDATA", home_path.join("config"))
+                .env("LOCALAPPDATA", home_path.join("local"))
+                .env("XDG_CONFIG_HOME", home_path.join("config"))
+                .env("XDG_STATE_HOME", home_path.join("state"))
+                .env("XDG_CACHE_HOME", home_path.join("cache"))
+                .env("DUCKDUCKGO_DDG_URL", &endpoint)
+                .env("DUCKDUCKGO_BASE_SPACING_MS", "250")
+                .env("DUCKDUCKGO_BASE_COOLDOWN_S", "1")
+                .env_remove("HTTPS_PROXY")
+                .env_remove("HTTP_PROXY")
+                .env_remove("ALL_PROXY")
+                .args(["--quiet", "-n", "1", "rust"]);
+            cmd.output().expect("spawn cli")
+        }));
+    }
+    let outputs: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let successes = outputs
+        .iter()
+        .filter(|o| o.status.code() == Some(0))
+        .count();
+    assert_eq!(
+        successes, parallel as usize,
+        "expected all {parallel} CLI invocations to succeed; outputs={outputs:#?}"
+    );
+    let max = max_in_flight.load(Ordering::SeqCst);
+    assert_eq!(
+        max, 1,
+        "the lock must serialise; observed up to {max} concurrent requests"
+    );
+    let mut starts = starts.lock().expect("starts mutex").clone();
+    starts.sort();
+    for window in starts.windows(2) {
+        let gap = window[1].duration_since(window[0]);
+        assert!(
+            gap >= std::time::Duration::from_millis(220),
+            "consecutive starts must respect spacing; got {gap:?}"
+        );
+    }
 }
 
 #[test]

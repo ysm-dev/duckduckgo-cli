@@ -39,8 +39,9 @@ pub struct SearchMeta {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RateLimitJson {
-    pub tokens_remaining: Option<f64>,
+    pub next_allowed_at: Option<String>,
     pub blocked_until: Option<String>,
+    pub slowdown_until: Option<String>,
     pub retried_count: u32,
 }
 

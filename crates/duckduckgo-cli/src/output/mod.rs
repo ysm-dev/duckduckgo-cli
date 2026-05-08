@@ -7,6 +7,25 @@ use duckduckgo_core::{Result, SearchResponse};
 
 use crate::config::Settings;
 
+/// Minimal stderr-emission context for code paths that fire from
+/// background callbacks (e.g. the rate-limit progress hook) and
+/// therefore cannot borrow `Settings` for their full lifetime. Captures
+/// only the fields `info_with` / `warn_with` need.
+#[derive(Clone, Copy, Debug)]
+pub struct OutputCtx {
+    pub quiet: bool,
+    pub stderr_color: bool,
+}
+
+impl OutputCtx {
+    pub fn from_settings(settings: &Settings) -> Self {
+        Self {
+            quiet: settings.quiet,
+            stderr_color: color::stderr(settings),
+        }
+    }
+}
+
 pub fn render(settings: &Settings, response: &SearchResponse) -> Result<()> {
     if settings.json {
         println!(
@@ -33,19 +52,27 @@ pub fn emit_warnings(settings: &Settings) {
 }
 
 pub fn warn(settings: &Settings, message: &str) {
-    if !settings.quiet {
+    warn_with(&OutputCtx::from_settings(settings), message);
+}
+
+pub fn info(settings: &Settings, message: &str) {
+    info_with(&OutputCtx::from_settings(settings), message);
+}
+
+pub fn warn_with(ctx: &OutputCtx, message: &str) {
+    if !ctx.quiet {
         eprintln!(
             "{} {message}",
-            color::paint("[WARN]", "33", color::stderr(settings))
+            color::paint("[WARN]", "33", ctx.stderr_color)
         );
     }
 }
 
-pub fn info(settings: &Settings, message: &str) {
-    if !settings.quiet {
+pub fn info_with(ctx: &OutputCtx, message: &str) {
+    if !ctx.quiet {
         eprintln!(
             "{} {message}",
-            color::paint("[INFO]", "36", color::stderr(settings))
+            color::paint("[INFO]", "36", ctx.stderr_color)
         );
     }
 }

@@ -10,6 +10,7 @@ pub mod region;
 mod search;
 
 pub use error::{Error, Result};
+pub use rate_limit::{ProgressHook, RateLimitProgress, RateLimitWait};
 pub use region::Region;
 pub use search::{
     Client, ClientBuilder, RateLimitJson, SearchBuilder, SearchMeta, SearchResponse, SearchResult,

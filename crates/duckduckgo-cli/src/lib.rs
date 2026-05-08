@@ -8,12 +8,14 @@ mod update_check;
 
 use std::io::Write;
 use std::process::ExitCode;
+use std::sync::Arc;
 
 use clap::Parser;
-use duckduckgo_core::{Client, Error};
+use duckduckgo_core::{Client, Error, ProgressHook, RateLimitProgress};
 
 use crate::args::Cli;
 use crate::config::Settings;
+use crate::output::OutputCtx;
 
 pub async fn main_entry() -> ExitCode {
     match run().await {
@@ -93,7 +95,30 @@ fn build_client(settings: &Settings) -> duckduckgo_core::Result<Client> {
         .no_rate_limit(!settings.rate_limit)
         .state_dir(settings.paths.state_dir.clone())
         .endpoint(settings.ddg_url.clone())
+        .on_rate_limit_progress(rate_limit_progress_hook(settings))
         .build()
+}
+
+/// Build the closure the limiter calls before each cooldown / spacing
+/// sleep. Renders the short-token format
+/// `rate-limit {kind} {elapsed}s/{total}s ({remaining}s left)` and
+/// routes it through `output::info_with`, which honours `--quiet` and
+/// the `--color` decision for stderr.
+fn rate_limit_progress_hook(settings: &Settings) -> ProgressHook {
+    let ctx = OutputCtx::from_settings(settings);
+    Arc::new(move |progress: RateLimitProgress| {
+        let elapsed = progress.elapsed.as_secs();
+        let total = progress.total.as_secs();
+        let remaining = progress.remaining.as_secs();
+        let kind = progress.kind.as_token();
+        let suffix = if progress.consecutive_blocks > 1 {
+            format!(" (block #{})", progress.consecutive_blocks)
+        } else {
+            String::new()
+        };
+        let message = format!("rate-limit {kind} {elapsed}s/{total}s ({remaining}s left){suffix}");
+        output::info_with(&ctx, &message);
+    })
 }
 
 fn print_help(long: bool) {

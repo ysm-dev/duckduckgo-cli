@@ -1,22 +1,23 @@
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use fd_lock::RwLock;
 use sha2::{Digest, Sha256};
+use time::OffsetDateTime;
 use url::Url;
 
 use super::RateLimitState;
 use crate::{Error, Result};
 
+/// Owns the layout of state and lock files for one egress identity (direct
+/// or proxy). Stateless across invocations; pure pathing utility plus
+/// `read_state`/`write_state` helpers that touch the filesystem under the
+/// caller's responsibility for synchronisation.
 #[derive(Clone, Debug)]
 pub struct StateStore {
     state_path: PathBuf,
     lock_path: PathBuf,
-}
-
-pub struct LockedStore {
-    state_path: PathBuf,
 }
 
 impl StateStore {
@@ -31,29 +32,26 @@ impl StateStore {
         }
     }
 
-    pub fn with_locked<T>(&self, f: impl FnOnce(&mut LockedStore) -> Result<T>) -> Result<T> {
+    /// Open and `O_CREAT|O_RDWR` the lock file with mode 0600 (POSIX).
+    /// The caller is expected to wrap the returned `File` in
+    /// `fd_lock::RwLock` and acquire the appropriate guard.
+    pub fn open_lock_file(&self) -> Result<File> {
         if let Some(parent) = self.lock_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let file = open_private(&self.lock_path)?;
-        let mut lock = RwLock::new(file);
-        let _guard = lock.write().map_err(|e| Error::Io(e.to_string()))?;
-        let mut store = LockedStore {
-            state_path: self.state_path.clone(),
-        };
-        f(&mut store)
+        open_private(&self.lock_path)
     }
-}
 
-impl LockedStore {
-    pub fn read_state(&mut self) -> RateLimitState {
-        std::fs::read_to_string(&self.state_path)
+    pub fn read_state(&self) -> RateLimitState {
+        let mut state: RateLimitState = std::fs::read_to_string(&self.state_path)
             .ok()
             .and_then(|s| serde_json::from_str(&s).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        state.sanitize(OffsetDateTime::now_utc());
+        state
     }
 
-    pub fn write_state(&mut self, state: &RateLimitState) -> Result<()> {
+    pub fn write_state(&self, state: &RateLimitState) -> Result<()> {
         if let Some(parent) = self.state_path.parent() {
             std::fs::create_dir_all(parent)?;
         }

@@ -24,10 +24,7 @@ impl FetchState {
             next: None,
             fetched_pages: 0,
             retried_count: 0,
-            snapshot: Snapshot {
-                tokens_remaining: None,
-                blocked_until: None,
-            },
+            snapshot: Snapshot::default(),
             done: false,
         }
     }

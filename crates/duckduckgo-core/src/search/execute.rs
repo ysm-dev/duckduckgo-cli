@@ -20,6 +20,7 @@ pub(crate) async fn execute(builder: SearchBuilder) -> Result<SearchResponse> {
             builder.options.state_dir.clone(),
             builder.options.proxy.as_deref(),
         )
+        .with_progress_hook(builder.options.progress_hook.clone())
     });
     let http = build_client(&builder.options)?;
     let mut state = FetchState::new(builder.page.saturating_mul(builder.options.num));
@@ -48,8 +49,9 @@ pub(crate) async fn execute(builder: SearchBuilder) -> Result<SearchResponse> {
         results,
         meta: SearchMeta {
             rate_limit: RateLimitJson {
-                tokens_remaining: state.snapshot.tokens_remaining,
-                blocked_until: state.snapshot.blocked_until,
+                next_allowed_at: state.snapshot.next_allowed_at.clone(),
+                blocked_until: state.snapshot.blocked_until.clone(),
+                slowdown_until: state.snapshot.slowdown_until.clone(),
                 retried_count: state.retried_count,
             },
             fetched_pages: state.fetched_pages,
