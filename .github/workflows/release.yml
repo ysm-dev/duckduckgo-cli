@@ -114,7 +114,7 @@ jobs:
           }
           for pkg in darwin-arm64 darwin-x64 linux-arm64-gnu linux-x64-gnu win32-arm64 win32-x64; do
             mkdir -p "packages/$pkg/bin"
-            cp artifacts/npm-$pkg/bin/* "packages/$pkg/bin/"
+            cp artifacts/npm-$pkg/* "packages/$pkg/bin/"
             chmod 0755 "packages/$pkg/bin"/*
             publish_package "packages/$pkg"
           done
