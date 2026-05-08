@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.3]
+
+### Changed
+
+- Internal refactor of the CLI's `output/` module into per-concept files
+  (`color.rs`, `plain.rs`, `mod.rs`) and the core's `rate_limit/` and
+  `search/` modules into smaller per-concept files to honour the
+  workspace's per-file line cap. No CLI flag, JSON envelope, or library
+  surface change.
+- `duckduckgo_core::ClientBuilder` now accepts injectable clock and
+  rate-limit constants via `duckduckgo_core::clock` and
+  `rate_limit::config`, used by tests to make rate-limit, cooldown, and
+  spacing behaviour deterministic. Defaults are unchanged.
+
+### Added
+
+- 90% line-coverage gate (`cargo llvm-cov`) enforced in CI for both
+  workspace crates, with new unit/integration suites covering args
+  parsing, config env/flag/file/print/raw/validate paths,
+  update-check HTTP, output color/plain rendering, parser block /
+  decode / pagination / results edge cases, rate-limit
+  store/post-flight/wait/progress/runner branches, and search
+  client/fetch/form/http/state/types coverage.
+- Parser fixtures (`tests/fixtures/anomaly-2026-05.html`,
+  `results-2026-05.html`) refreshed and wired into deterministic unit
+  tests.
+
+### Fixed
+
+- Root `duckduckgo-cli` npm package now pins its
+  `optionalDependencies` to the matching `0.1.3` platform packages
+  (previously stuck at `0.1.1` after the 0.1.2 bump).
+
 ## [0.1.2]
 
 ### Fixed
