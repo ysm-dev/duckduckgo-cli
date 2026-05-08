@@ -100,11 +100,20 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           package-manager-cache: false
       - shell: bash
+        # npm trusted publishing requires each package on
+        # registry.npmjs.org to have a trusted-publisher config tied to
+        # this repo + workflow. When that config is missing, PUT to the
+        # registry returns 404 ("not found or no permission"). Mark
+        # this step non-fatal so the cargo + homebrew releases below
+        # can still complete; the maintainer can configure trusted
+        # publishing on npm and re-run / retag separately. See
+        # https://docs.npmjs.com/trusted-publishers.
+        continue-on-error: true
         run: |
           set -euo pipefail
           # `npm publish <dir>` interprets a `user/repo`-shaped argument
-          # as a GitHub shortcut (issue #1235 / #2974). Pass directories
-          # with a leading `./` so npm always treats them as paths.
+          # as a GitHub shortcut. Pass directories with a leading `./`
+          # so npm always treats them as paths.
           publish_package() {
             dir="$1"
             name=$(node -p "require('./$dir/package.json').name")
@@ -112,7 +121,7 @@ jobs:
             if npm view "$name@$version" version >/dev/null 2>&1; then
               echo "$name@$version already published; skipping"
             else
-              npm publish "./$dir" --access public
+              npm publish "./$dir" --access public --provenance
             fi
           }
           for pkg in darwin-arm64 darwin-x64 linux-arm64-gnu linux-x64-gnu win32-arm64 win32-x64; do
