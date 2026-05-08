@@ -6,7 +6,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 license = "MIT"
 repository = "https://github.com/ysm-dev/duckduckgo-cli"
@@ -37,7 +37,7 @@ tokio = { version = "1.48", features = ["fs", "macros", "rt", "time"] }
 terminal_size = "0.4"
 unicode-width = "0.2"
 url = "2.5"
-wreq = { version = "5.3", features = ["cookies", "socks"] }
+wreq = { version = "5.3", features = ["cookies", "gzip", "socks"] }
 
 [profile.release]
 lto = true

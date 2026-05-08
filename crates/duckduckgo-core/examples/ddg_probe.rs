@@ -50,6 +50,7 @@ async fn main() -> std::io::Result<()> {
 
     let summary = match scenario.as_str() {
         "preview" => runner.preview().await,
+        "cli-path" => runner.cli_path().await,
         "serial" => runner.serial(args.interval_ms, args.count).await,
         "burst" => runner.burst(args.parallel, args.rounds, args.gap_s).await,
         "recovery" => {
@@ -185,7 +186,7 @@ fn parse_u32(iter: &mut impl Iterator<Item = String>, flag: &str) -> u32 {
 }
 
 struct Runner {
-    client: Client,
+    client: std::cell::OnceCell<Client>,
     args: Args,
     out: Arc<Mutex<Option<tokio::fs::File>>>,
     t0: Instant,
@@ -193,22 +194,6 @@ struct Runner {
 
 impl Runner {
     fn new(args: &Args) -> std::io::Result<Self> {
-        let mut builder = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .connect_timeout(Duration::from_secs(5))
-            .read_timeout(Duration::from_secs(15))
-            .redirect(wreq::redirect::Policy::none())
-            .cookie_store(true)
-            .no_proxy();
-        if args.emulation && args.endpoint.scheme() == "https" {
-            builder = builder.emulation(wreq::EmulationProvider::default());
-        }
-        if let Some(ua) = &args.user_agent {
-            builder = builder.user_agent(ua.as_str());
-        }
-        let client = builder
-            .build()
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
         let out = if let Some(path) = &args.out {
             Some(
                 std::fs::OpenOptions::new()
@@ -220,10 +205,29 @@ impl Runner {
             None
         };
         Ok(Self {
-            client,
+            client: std::cell::OnceCell::new(),
             args: clone_args(args),
             out: Arc::new(Mutex::new(out.map(tokio::fs::File::from_std))),
             t0: Instant::now(),
+        })
+    }
+
+    fn client(&self) -> &Client {
+        self.client.get_or_init(|| {
+            let mut builder = Client::builder()
+                .timeout(Duration::from_secs(30))
+                .connect_timeout(Duration::from_secs(5))
+                .read_timeout(Duration::from_secs(15))
+                .redirect(wreq::redirect::Policy::none())
+                .cookie_store(true)
+                .no_proxy();
+            if self.args.emulation && self.args.endpoint.scheme() == "https" {
+                builder = builder.emulation(wreq::EmulationProvider::default());
+            }
+            if let Some(ua) = &self.args.user_agent {
+                builder = builder.user_agent(ua.as_str());
+            }
+            builder.build().expect("build wreq client")
         })
     }
 
@@ -240,6 +244,82 @@ impl Runner {
             first_block_ix: (event.classify.starts_with("blocked")).then_some(0),
             first_block_t_ms: (event.classify.starts_with("blocked")).then_some(event.t_ms),
         }
+    }
+
+    /// Side-channel: drive the public CLI-facing `Client` API the same
+    /// way the production binary does. Used as a debugging aid to verify
+    /// whether the difference between probe and CLI is in the low-level
+    /// transport (this path) vs higher-level CLI plumbing.
+    async fn cli_path(&self) -> ScenarioSummary {
+        use duckduckgo_core::Client;
+        let dir = std::env::temp_dir().join(format!("ddg_probe_state_{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let client = Client::builder()
+            .endpoint(self.args.endpoint.as_str().to_owned())
+            .num(1)
+            .safe(true)
+            .timeout(30)
+            .no_rate_limit(true)
+            .state_dir(dir)
+            .build()
+            .expect("build");
+        let started = OffsetDateTime::now_utc();
+        let begin = Instant::now();
+        let response = client.search(&self.args.query).page(1).send().await;
+        let duration_ms = begin.elapsed().as_millis() as u64;
+        let event = match response {
+            Ok(r) => Event {
+                phase: "request",
+                ix: 0,
+                t_ms: 0,
+                started_at: started
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+                duration_ms,
+                status: Some(200),
+                len: Some(r.results.len()),
+                classify: if r.results.is_empty() {
+                    "ok_empty".into()
+                } else {
+                    "ok".into()
+                },
+                final_url: None,
+                location: None,
+                body_marker: Some(format!("via cli_path; results={}", r.results.len())),
+                error: None,
+            },
+            Err(e) => Event {
+                phase: "request",
+                ix: 0,
+                t_ms: 0,
+                started_at: started
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default(),
+                duration_ms,
+                status: None,
+                len: None,
+                classify: format!("error:{e}").chars().take(96).collect(),
+                final_url: None,
+                location: None,
+                body_marker: None,
+                error: Some(e.to_string()),
+            },
+        };
+        let mut summary = ScenarioSummary {
+            total: 1,
+            ..ScenarioSummary::default()
+        };
+        if event.classify == "ok" {
+            summary.ok = 1;
+        } else if event.classify == "ok_empty" {
+            summary.ok_empty = 1;
+        } else if event.classify.starts_with("blocked") {
+            summary.blocked = 1;
+        } else {
+            summary.errored = 1;
+        }
+        self.write_line(&event).await.ok();
+        summary
     }
 
     async fn serial(&self, interval_ms: u64, count: u32) -> ScenarioSummary {
@@ -319,7 +399,7 @@ impl Runner {
 
     fn clone_for_task(&self) -> Arc<RunnerTask> {
         Arc::new(RunnerTask {
-            client: self.client.clone(),
+            client: self.client().clone(),
             endpoint: self.args.endpoint.clone(),
             query: self.args.query.clone(),
             region: self.args.region.clone(),

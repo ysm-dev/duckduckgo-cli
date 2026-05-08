@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.2]
+
+### Fixed
+
+- Anomaly classifier no longer reports a soft-block on legitimate
+  `HTTP 200` responses whose result snippets contain the bare word
+  `"challenge"` (or `"captcha"`) — the kind of phrase that appears in
+  ordinary DDG search results for queries like `rust async tutorial`.
+  The classifier now matches DDG's actual anomaly-modal markers
+  (`anomaly-modal__`, `anomaly_modal`, `/anomaly.js`, the literal
+  "Unfortunately, bots use DuckDuckGo too." sentence, and
+  `id="challenge-form"`), all taken from the captured anomaly response
+  recorded in [`docs/en/ddgr.md`](docs/en/ddgr.md). Five new unit tests
+  in `crates/duckduckgo-core/src/parser/block.rs` pin down the
+  legitimate-vs-anomaly distinction. This unblocks parallel CLI loads
+  that the rate-limit gate already prevented from bursting at the
+  network layer.
+
+### Added
+
+- `docs/en/ddgr.md` first-party rate-limit field report (sliding-window
+  counter at ≈ 8 starts with refill ≈ 1 / 1.5 s, soft-block returns
+  `HTTP 202` with a 14 KB anomaly modal, recovery ≈ 60 s while
+  probing). Referenced from spec.md §8 and used as the empirical basis
+  for the v0.1.1 limiter constants.
+
 ## [0.1.1]
 
 ### Added

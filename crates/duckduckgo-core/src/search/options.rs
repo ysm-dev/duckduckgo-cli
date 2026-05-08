@@ -44,6 +44,9 @@ impl std::fmt::Debug for ClientOptions {
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
+            // Trailing slash matters: posting to `/html` returns
+            // `HTTP 202` (anomaly) while `/html/` returns `HTTP 200`.
+            // See `docs/en/ddgr.md` for the empirical evidence.
             endpoint: "https://html.duckduckgo.com/html/".to_owned(),
             region: Region::default(),
             num: 10,
