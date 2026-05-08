@@ -2,6 +2,7 @@
 name = "duckduckgo-core"
 version.workspace = true
 edition.workspace = true
+description = "DuckDuckGo search client library for duckduckgo-cli"
 license.workspace = true
 repository.workspace = true
 

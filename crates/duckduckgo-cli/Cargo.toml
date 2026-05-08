@@ -2,6 +2,7 @@
 name = "duckduckgo-cli"
 version.workspace = true
 edition.workspace = true
+description = "Agent-first DuckDuckGo search CLI"
 license.workspace = true
 repository.workspace = true
 build = "build.rs"
