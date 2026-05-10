@@ -1,1 +1,1 @@
-{"name":"@duckduckgo-cli/linux-arm64-gnu","version":"0.1.4","os":["linux"],"cpu":["arm64"],"libc":["glibc"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}
+{"name":"@duckduckgo-cli/linux-arm64-gnu","version":"0.1.5","os":["linux"],"cpu":["arm64"],"libc":["glibc"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}
