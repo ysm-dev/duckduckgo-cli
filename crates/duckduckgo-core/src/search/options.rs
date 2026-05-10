@@ -50,10 +50,8 @@ impl std::fmt::Debug for ClientOptions {
 impl Default for ClientOptions {
     fn default() -> Self {
         Self {
-            // Trailing slash matters: posting to `/html` returns
-            // `HTTP 202` (anomaly) while `/html/` returns `HTTP 200`.
-            // See `docs/en/ddgr.md` for the empirical evidence.
-            endpoint: "https://html.duckduckgo.com/html/".to_owned(),
+            // ddgr --noua posts to this endpoint without a trailing slash.
+            endpoint: "https://html.duckduckgo.com/html".to_owned(),
             region: Region::default(),
             num: 10,
             safe: true,
@@ -79,8 +77,7 @@ mod tests {
     #[test]
     fn defaults_match_public_cli_contract() {
         let options = ClientOptions::default();
-        assert_eq!(options.endpoint, "https://html.duckduckgo.com/html/");
-        assert!(options.endpoint.ends_with('/'));
+        assert_eq!(options.endpoint, "https://html.duckduckgo.com/html");
         assert_eq!(options.region.code(), "us-en");
         assert_eq!(options.num, 10);
         assert!(options.safe);

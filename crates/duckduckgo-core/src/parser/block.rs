@@ -63,7 +63,7 @@ mod tests {
     use url::Url;
 
     fn endpoint() -> Url {
-        Url::parse("https://html.duckduckgo.com/html/").unwrap()
+        Url::parse("https://html.duckduckgo.com/html").unwrap()
     }
 
     #[test]

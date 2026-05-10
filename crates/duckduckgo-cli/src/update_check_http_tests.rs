@@ -34,7 +34,7 @@ fn settings(dir: &TempDir, github_url: String) -> Settings {
             cache_dir: dir.path().join("cache"),
         },
         warnings: Vec::new(),
-        ddg_url: "https://html.duckduckgo.com/html/".to_owned(),
+        ddg_url: "https://html.duckduckgo.com/html".to_owned(),
         github_url,
     }
 }

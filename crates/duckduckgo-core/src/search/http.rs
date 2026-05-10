@@ -9,6 +9,7 @@ use crate::{Error, Result};
 pub(crate) fn build_client(options: &ClientOptions) -> Result<wreq::Client> {
     let total = Duration::from_secs(options.timeout);
     let mut default_headers = HeaderMap::new();
+    default_headers.insert("Accept-Encoding", HeaderValue::from_static("gzip"));
     default_headers.insert("DNT", HeaderValue::from_static("1"));
     let mut builder = wreq::Client::builder();
     builder = builder
@@ -17,10 +18,8 @@ pub(crate) fn build_client(options: &ClientOptions) -> Result<wreq::Client> {
         .timeout(total)
         .connect_timeout(total.min(Duration::from_secs(5)))
         .read_timeout(total.min(Duration::from_secs(15)))
-        .redirect(wreq::redirect::Policy::none())
-        .cookie_store(true)
-        // Send an explicit empty User-Agent header by default, matching
-        // ddgr's --noua request profile. Users can override via --user-agent.
+        // ddgr --noua sends an explicit empty User-Agent header.
+        // Users can override via --user-agent.
         .user_agent(options.user_agent.as_deref().unwrap_or(""));
     if let Some(proxy) = &options.proxy {
         builder = builder.proxy(wreq::Proxy::all(proxy).map_err(|e| Error::Usage(e.to_string()))?);

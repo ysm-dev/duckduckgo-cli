@@ -213,8 +213,10 @@ fn search_outputs_plain_text_and_json_against_mock_ddg() {
     let server = MockServer::start();
     server.mock(|when, then| {
         when.method(POST)
-            .path("/html/")
+            .path("/html")
             .header("User-Agent", "")
+            .header("Accept-Encoding", "gzip")
+            .header("DNT", "1")
             .body_includes("q=rust")
             .body_includes("kl=us-en")
             .body_includes("kp=1");
@@ -222,7 +224,7 @@ fn search_outputs_plain_text_and_json_against_mock_ddg() {
     });
 
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--no-rate-limit", "-n", "2", "rust"])
         .assert()
         .success()
@@ -233,7 +235,7 @@ fn search_outputs_plain_text_and_json_against_mock_ddg() {
         );
 
     let output = cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--no-rate-limit", "--json", "-n", "1", "rust"])
         .assert()
         .success()
@@ -256,12 +258,12 @@ fn user_agent_is_empty_by_default_and_opt_in_when_supplied() {
     let server = MockServer::start();
     server.mock(|when, then| {
         when.method(POST)
-            .path("/html/")
+            .path("/html")
             .header("User-Agent", "tool/1.0");
         then.status(200).body(ddg_fixture());
     });
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--no-rate-limit", "--user-agent", "tool/1.0", "rust"])
         .assert()
         .success();
@@ -272,37 +274,60 @@ fn pagination_and_parse_drift_follow_spec() {
     let home = TempDir::new().unwrap();
     let server = MockServer::start();
     server.mock(|when, then| {
-        when.method(POST).path("/html/").body_includes("q=rust");
+        when.method(POST)
+            .path("/html")
+            .body_includes("q=rust")
+            .body_includes("b=");
         then.status(200).header("Set-Cookie", "sid=abc; Path=/").body(r#"<!doctype html><html><body>
           <div class="result"><a class="result__a" href="https://example.com/1">One</a><a class="result__snippet">First</a></div>
           <form><input name="s" value="30"><input name="nextParams" value="x"><input name="vqd" value="abc"></form>
         </body></html>"#);
     });
+    let cookie_detector = server.mock(|when, then| {
+        when.method(POST)
+            .path("/html")
+            .header("Cookie", "sid=abc");
+        then.status(200).body(r#"<!doctype html><html><body>
+          <div class="result"><a class="result__a" href="https://example.com/cookie">Cookie</a><a class="result__snippet">Cookie</a></div>
+        </body></html>"#);
+    });
     server.mock(|when, then| {
         when.method(POST)
-            .path("/html/")
+            .path("/html")
+            .body_includes("q=rust")
+            .body_includes("s=30")
             .body_includes("nextParams=x")
-            .header("Cookie", "sid=abc");
+            .body_includes("v=l")
+            .body_includes("o=json")
+            .body_includes("dc=2")
+            .body_includes("api=%2Fd.js")
+            .body_includes("kf=-1")
+            .body_includes("kh=1")
+            .body_includes("kl=us-en")
+            .body_includes("kp=1")
+            .body_includes("k1=-1")
+            .body_includes("vqd=abc");
         then.status(200).body(r#"<!doctype html><html><body>
           <div class="result"><a class="result__a" href="https://example.com/2">Two</a><a class="result__snippet">Second</a></div>
         </body></html>"#);
     });
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--no-rate-limit", "--page", "2", "-n", "1", "rust"])
         .assert()
         .success()
         .stdout(predicate::str::contains("   2. Two"));
+    assert_eq!(cookie_detector.calls(), 0);
 
     let drift = MockServer::start();
     drift.mock(|when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         then.status(200).body(r#"<!doctype html><html><body>
           <div class="result"><a class="result__a" href="https://example.com/1">One</a><a class="result__snippet">First</a></div>
         </body></html>"#);
     });
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", drift.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", drift.base_url()))
         .args(["--no-rate-limit", "--page", "2", "-n", "1", "rust"])
         .assert()
         .code(4)
@@ -314,11 +339,11 @@ fn no_results_json_is_quiet_exit_one_and_color_always_uses_ansi() {
     let home = TempDir::new().unwrap();
     let empty = MockServer::start();
     let _empty_mock = empty.mock(|when, then| {
-        when.method(POST).path("/html/").body_includes("q=nomatch");
+        when.method(POST).path("/html").body_includes("q=nomatch");
         then.status(200).body(empty_fixture());
     });
     let output = cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", empty.url("/html/"))
+        .env("DUCKDUCKGO_DDG_URL", empty.url("/html"))
         .args(["--no-rate-limit", "--json", "nomatch"])
         .assert()
         .code(1)
@@ -332,11 +357,11 @@ fn no_results_json_is_quiet_exit_one_and_color_always_uses_ansi() {
 
     let server = MockServer::start();
     let _server_mock = server.mock(|when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         then.status(200).body(instant_answer_fixture());
     });
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", server.url("/html/"))
+        .env("DUCKDUCKGO_DDG_URL", server.url("/html"))
         .args(["--no-rate-limit", "--color", "always", "rust"])
         .assert()
         .success()
@@ -365,11 +390,11 @@ fn blocks_and_no_wait_return_exit_five() {
 
     let server = MockServer::start();
     server.mock(|when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         then.status(202).body(anomaly_fixture());
     });
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--no-rate-limit", "--retry", "0", "rust"])
         .assert()
         .code(5)
@@ -398,12 +423,12 @@ fn rate_limit_spacing_wait_emits_short_progress_line_on_stderr() {
 
     let server = MockServer::start();
     server.mock(|when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         then.status(200).body(ddg_fixture());
     });
 
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--color", "never", "-n", "1", "rust"])
         .assert()
         .success()
@@ -433,12 +458,12 @@ fn rate_limit_progress_is_silent_under_quiet_flag() {
 
     let server = MockServer::start();
     server.mock(|when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         then.status(200).body(ddg_fixture());
     });
 
     cmd(&home)
-        .env("DUCKDUCKGO_DDG_URL", format!("{}/html/", server.base_url()))
+        .env("DUCKDUCKGO_DDG_URL", format!("{}/html", server.base_url()))
         .args(["--quiet", "-n", "1", "rust"])
         .assert()
         .success()
@@ -469,7 +494,7 @@ fn parallel_cli_invocations_serialise_through_state_file_and_never_burst() {
     let max_in_flight_for_mock = max_in_flight.clone();
     let starts_for_mock = starts.clone();
     server.mock(move |when, then| {
-        when.method(POST).path("/html/");
+        when.method(POST).path("/html");
         let cur = in_flight_for_mock.fetch_add(1, Ordering::SeqCst) + 1;
         let mut high = max_in_flight_for_mock.load(Ordering::SeqCst);
         while cur > high
@@ -492,7 +517,7 @@ fn parallel_cli_invocations_serialise_through_state_file_and_never_burst() {
     });
 
     let parallel = 8_u32;
-    let endpoint = format!("{}/html/", server.base_url());
+    let endpoint = format!("{}/html", server.base_url());
     let mut handles = Vec::with_capacity(parallel as usize);
     for _ in 0..parallel {
         let endpoint = endpoint.clone();

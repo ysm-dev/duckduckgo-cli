@@ -1,1 +1,1 @@
-{"name":"@duckduckgo-cli/win32-x64","version":"0.1.5","os":["win32"],"cpu":["x64"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}
+{"name":"@duckduckgo-cli/win32-x64","version":"0.1.6","os":["win32"],"cpu":["x64"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}

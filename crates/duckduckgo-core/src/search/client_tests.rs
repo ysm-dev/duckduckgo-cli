@@ -19,7 +19,7 @@ fn builder_chaining_updates_client_options() {
         .no_wait(true)
         .no_rate_limit(true)
         .state_dir("state".into())
-        .endpoint("https://example.com/html/".to_owned())
+        .endpoint("https://example.com/html".to_owned())
         .limits(Limits::test_fast(1, 2, 1))
         .clock(clock)
         .build()
@@ -28,7 +28,7 @@ fn builder_chaining_updates_client_options() {
     assert_eq!(search.options.region.code(), "wt-wt");
     assert_eq!(search.options.num, 7);
     assert!(!search.options.safe);
-    assert_eq!(search.options.endpoint, "https://example.com/html/");
+    assert_eq!(search.options.endpoint, "https://example.com/html");
     assert_eq!(search.page, 3);
 }
 

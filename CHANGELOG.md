@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.1.6]
+
+### Changed
+
+- Match `ddgr --noua` search requests more closely: post to `/html`
+  without the trailing slash, send `Accept-Encoding: gzip` with empty
+  `User-Agent` and `DNT: 1`, avoid replaying DDG cookies, allow the
+  default redirect policy, and build subsequent-page form bodies using
+  ddgr's field shape.
+
 ## [0.1.3]
 
 ### Changed

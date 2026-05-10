@@ -1,1 +1,1 @@
-{"name":"@duckduckgo-cli/darwin-arm64","version":"0.1.5","os":["darwin"],"cpu":["arm64"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}
+{"name":"@duckduckgo-cli/darwin-arm64","version":"0.1.6","os":["darwin"],"cpu":["arm64"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}

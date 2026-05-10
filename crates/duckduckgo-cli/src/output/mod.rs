@@ -121,7 +121,7 @@ mod tests {
                 cache_dir: PathBuf::from("cache"),
             },
             warnings: Vec::new(),
-            ddg_url: "https://html.duckduckgo.com/html/".to_owned(),
+            ddg_url: "https://html.duckduckgo.com/html".to_owned(),
             github_url: "https://api.github.com".to_owned(),
         }
     }

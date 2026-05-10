@@ -26,8 +26,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::Mutex;
 use url::Url;
 use wreq::Client;
+use wreq::header::{HeaderMap, HeaderValue};
 
-const DEFAULT_ENDPOINT: &str = "https://html.duckduckgo.com/html/";
+const DEFAULT_ENDPOINT: &str = "https://html.duckduckgo.com/html";
 const DEFAULT_QUERY: &str = "rust programming language";
 const DEFAULT_REGION: &str = "us-en";
 
@@ -123,7 +124,7 @@ fn parse_args(argv: Vec<String>) -> Args {
         query: DEFAULT_QUERY.to_owned(),
         region: DEFAULT_REGION.to_owned(),
         user_agent: None,
-        emulation: true,
+        emulation: false,
         label: "default".to_owned(),
         out: None,
         interval_ms: 1500,
@@ -143,6 +144,7 @@ fn parse_args(argv: Vec<String>) -> Args {
             "--query" => args.query = need(&mut iter, &token),
             "--region" => args.region = need(&mut iter, &token),
             "--user-agent" => args.user_agent = Some(need(&mut iter, &token)),
+            "--emulation" => args.emulation = true,
             "--no-emulation" => args.emulation = false,
             "--label" => args.label = need(&mut iter, &token),
             "--out" => args.out = Some(PathBuf::from(need(&mut iter, &token))),
@@ -214,13 +216,16 @@ impl Runner {
 
     fn client(&self) -> &Client {
         self.client.get_or_init(|| {
+            let mut default_headers = HeaderMap::new();
+            default_headers.insert("Accept-Encoding", HeaderValue::from_static("gzip"));
+            default_headers.insert("DNT", HeaderValue::from_static("1"));
             let mut builder = Client::builder()
+                .default_headers(default_headers)
                 .timeout(Duration::from_secs(30))
                 .connect_timeout(Duration::from_secs(5))
                 .read_timeout(Duration::from_secs(15))
-                .redirect(wreq::redirect::Policy::none())
-                .cookie_store(true)
-                .no_proxy();
+                .no_proxy()
+                .user_agent("");
             if self.args.emulation && self.args.endpoint.scheme() == "https" {
                 builder = builder.emulation(wreq::EmulationProvider::default());
             }

@@ -4,7 +4,7 @@ use crate::rate_limit::AttemptOutcome;
 use url::Url;
 
 fn endpoint() -> Url {
-    Url::parse("https://html.duckduckgo.com/html/").unwrap()
+    Url::parse("https://html.duckduckgo.com/html").unwrap()
 }
 
 #[test]

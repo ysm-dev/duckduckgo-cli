@@ -58,12 +58,9 @@ pub(crate) fn validate(
         rate_limit: !raw.no_rate_limit.unwrap_or(false),
         paths,
         warnings,
-        // Trailing slash is mandatory: posting to `/html` returns
-        // `HTTP 202` with the anomaly modal, while `/html/` returns
-        // `HTTP 200` with results. Verified empirically against the
-        // live endpoint (2026-05-08).
+        // ddgr --noua posts to `/html` without a trailing slash.
         ddg_url: env::var("DUCKDUCKGO_DDG_URL")
-            .unwrap_or_else(|_| "https://html.duckduckgo.com/html/".to_owned()),
+            .unwrap_or_else(|_| "https://html.duckduckgo.com/html".to_owned()),
         github_url: env::var("DUCKDUCKGO_GITHUB_URL")
             .unwrap_or_else(|_| "https://api.github.com".to_owned()),
     })
