@@ -1,1 +1,1 @@
-{"name":"@duckduckgo-cli/linux-x64-musl","version":"0.1.3","os":["linux"],"cpu":["x64"],"libc":["musl"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}
+{"name":"@duckduckgo-cli/linux-x64-musl","version":"0.1.4","os":["linux"],"cpu":["x64"],"libc":["musl"],"files":["bin"],"license":"MIT","repository":{"type":"git","url":"git+https://github.com/ysm-dev/duckduckgo-cli.git"}}

@@ -214,7 +214,7 @@ fn search_outputs_plain_text_and_json_against_mock_ddg() {
     server.mock(|when, then| {
         when.method(POST)
             .path("/html/")
-            .header_missing("User-Agent")
+            .header("User-Agent", "")
             .body_includes("q=rust")
             .body_includes("kl=us-en")
             .body_includes("kp=1");

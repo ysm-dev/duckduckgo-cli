@@ -1,28 +1,29 @@
 use std::time::Duration;
 
 use url::Url;
+use wreq::header::{HeaderMap, HeaderValue};
 
 use super::options::ClientOptions;
 use crate::{Error, Result};
 
 pub(crate) fn build_client(options: &ClientOptions) -> Result<wreq::Client> {
     let total = Duration::from_secs(options.timeout);
+    let mut default_headers = HeaderMap::new();
+    default_headers.insert("DNT", HeaderValue::from_static("1"));
     let mut builder = wreq::Client::builder();
-    if options.endpoint.starts_with("https://") {
-        builder = builder.emulation(wreq::EmulationProvider::default());
-    }
     builder = builder
         .no_proxy()
+        .default_headers(default_headers)
         .timeout(total)
         .connect_timeout(total.min(Duration::from_secs(5)))
         .read_timeout(total.min(Duration::from_secs(15)))
         .redirect(wreq::redirect::Policy::none())
-        .cookie_store(true);
+        .cookie_store(true)
+        // Send an explicit empty User-Agent header by default, matching
+        // ddgr's --noua request profile. Users can override via --user-agent.
+        .user_agent(options.user_agent.as_deref().unwrap_or(""));
     if let Some(proxy) = &options.proxy {
         builder = builder.proxy(wreq::Proxy::all(proxy).map_err(|e| Error::Usage(e.to_string()))?);
-    }
-    if let Some(ua) = &options.user_agent {
-        builder = builder.user_agent(ua.as_str());
     }
     builder.build().map_err(|e| Error::Network(e.to_string()))
 }

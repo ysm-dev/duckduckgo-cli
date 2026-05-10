@@ -67,8 +67,6 @@ pub struct Cli {
     pub np: bool,
     #[arg(long = "noprompt", hide = true, action = ArgAction::SetTrue)]
     pub noprompt: bool,
-    #[arg(long = "noua", hide = true, action = ArgAction::SetTrue)]
-    pub noua: bool,
     #[arg(value_name = "QUERY")]
     pub query: Vec<String>,
 }
